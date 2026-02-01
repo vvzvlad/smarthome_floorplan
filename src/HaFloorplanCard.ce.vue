@@ -60,7 +60,7 @@ const entityStates = computed(() => {
                 const shouldLightUp = state === 'on';
                 states[entity.entityId] = { state, color, brightness, shouldLightUp };
             } else if (entity.type === 'media_player') {
-                const shouldLightUp = ['on', 'playing'].includes(state);
+                const shouldLightUp = !['off', 'unavailable', 'unknown'].includes(state);
                 states[entity.entityId] = { state, shouldLightUp };
             } else if (entity.type === 'camera') {
                 const shouldLightUp = ['on', 'recording', 'streaming'].includes(state);
