@@ -159,6 +159,10 @@ function getLabelStyle(entity: any) {
     };
 }
 
+function getPointsString(points: { x: number, y: number }[]) {
+    return points.map(p => `${p.x} ${p.y}`).join(',');
+}
+
 function isRecording(entity: any) {
     const state = props.entityStates[entity.entityId];
     return entity.type === 'camera' && state?.state === 'recording';
@@ -187,11 +191,17 @@ function isRecording(entity: any) {
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
                         </radialGradient>
                     </defs>
-                    <ellipse v-for="entity in props.config.entities" :key="'poly-' + entity.id"
-                        :cx="entity.x" :cy="entity.y"
-                        :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
-                        :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                        stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                    <template v-for="entity in props.config.entities" :key="'poly-' + entity.id">
+                        <ellipse v-if="!entity.points || entity.points.length === 0"
+                            :cx="entity.x" :cy="entity.y"
+                            :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
+                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                        <polygon v-else
+                            :points="getPointsString(entity.points)"
+                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                    </template>
                 </svg>
 
                 <div v-for="entity in props.config.entities" :key="entity.id" class="interactive-entity"
