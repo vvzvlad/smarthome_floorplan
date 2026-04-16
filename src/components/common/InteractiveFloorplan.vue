@@ -195,7 +195,7 @@ function isRecording(entity: any) {
                     :title="entity.label">
                     <div class="entity-shape" :class="{ 'camera-recording': isRecording(entity) }"
                         :style="getEntityVisualStyle(entity)"></div>
-                    <div v-if="entity.labelConfig.show" class="entity-label" :style="getLabelStyle(entity)"
+                    <div v-if="entity.labelConfig.show && entity.label" class="entity-label" :style="getLabelStyle(entity)"
                         @pointerdown.stop="handlePointerDown($event, entity)"
                         @pointerup.stop="handlePointerUp($event, entity)" @pointerleave.stop="handlePointerLeave()">
                         {{ entity.label }}
