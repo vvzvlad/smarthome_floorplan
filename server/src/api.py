@@ -70,6 +70,12 @@ def get_states():
     return JSONResponse(content=device_states)
 
 
+@app.get("/api/devices", dependencies=[Depends(verify_auth)])
+def get_devices():
+    """Return sorted list of known z2m device friendly names."""
+    return JSONResponse(content=sorted(device_states.keys()))
+
+
 @app.post("/api/entity/{entity_id:path}/command", dependencies=[Depends(verify_auth)])
 async def post_command(entity_id: str, request: Request):
     """
