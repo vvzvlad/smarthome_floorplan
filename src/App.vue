@@ -129,4 +129,24 @@ main {
   overflow: hidden;
   position: relative;
 }
+
+@media (max-width: 768px) {
+  .app-header {
+    height: auto;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .logo {
+    font-size: 0.85rem;
+  }
+
+  nav {
+    gap: 0.25rem;
+  }
+
+  nav a {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.85rem;
+  }
+}
 </style>
