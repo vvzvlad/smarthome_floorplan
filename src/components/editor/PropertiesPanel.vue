@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useFloorplanStore } from '../../stores/floorplan';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
+import { fetchDevices } from '../../utils/api';
 const store = useFloorplanStore();
 
 
@@ -64,6 +65,16 @@ function clearPoints() {
 // BUT for a local tool, direct mutation is often acceptable if 'store' is just state.
 // Let's try direct binding for now for speed, if it fails we wrap.
 const version = __APP_VERSION__;
+
+const knownDevices = ref<string[]>([]);
+
+onMounted(async () => {
+    try {
+        knownDevices.value = await fetchDevices();
+    } catch {
+        // Server may not have seen any devices yet
+    }
+});
 </script>
 
 <template>
@@ -123,7 +134,12 @@ const version = __APP_VERSION__;
 
                     <div class="input-group">
                         <label>Entity ID</label>
-                        <input type="text" v-model="selectedEntity.entityId" placeholder="z2m friendly_name">
+                        <input type="text" v-model="selectedEntity.entityId"
+                               placeholder="z2m friendly_name"
+                               list="known-devices-list">
+                        <datalist id="known-devices-list">
+                            <option v-for="name in knownDevices" :key="name" :value="name" />
+                        </datalist>
                     </div>
 
                     <div class="section-title">Visuals</div>

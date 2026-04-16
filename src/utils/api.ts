@@ -69,3 +69,9 @@ export async function checkCredentials(username: string, password: string): Prom
     });
     return res.status === 200;
 }
+
+export async function fetchDevices(): Promise<string[]> {
+    const res = await apiFetch('/api/devices');
+    if (!res.ok) throw new Error('Failed to fetch devices');
+    return res.json();
+}
