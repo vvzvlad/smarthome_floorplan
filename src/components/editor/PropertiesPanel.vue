@@ -87,6 +87,10 @@ function selectDevice(name: string) {
     }
     showDeviceList.value = false;
 }
+
+function hideDeviceList() {
+    setTimeout(() => { showDeviceList.value = false; }, 200);
+}
 </script>
 
 <template>
@@ -151,7 +155,7 @@ function selectDevice(name: string) {
                                    placeholder="z2m friendly_name"
                                    autocomplete="off"
                                    @focus="refreshDevices(); showDeviceList = true"
-                                   @blur="setTimeout(() => { showDeviceList = false }, 200)">
+                                   @blur="hideDeviceList">
                             <div v-if="showDeviceList && filteredDevices.length > 0" class="device-dropdown">
                                 <div v-for="name in filteredDevices" :key="name"
                                      class="device-option"
