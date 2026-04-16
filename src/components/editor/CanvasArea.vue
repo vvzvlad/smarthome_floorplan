@@ -207,7 +207,7 @@ function onPointTouchEnd() {
               :cx="entity.x" :cy="entity.y"
               :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
               :fill="`url(#grad-editor-${entity.id})`"
-              :stroke="store.selectedEntityId === entity.id ? 'var(--color-primary)' : 'none'" stroke-width="0.5"
+              stroke="none"
               style="pointer-events: none;" />
             <!-- Polygon outlines for selected entities with points -->
             <template v-for="entity in store.entities" :key="'outline-' + entity.id">
