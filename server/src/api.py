@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-APP_TITLE = os.getenv("APP_TITLE", "HA Floorplan")
+APP_TITLE = os.getenv("APP_TITLE", "Z2M Floorplan")
 
 
 @app.get("/api/info")
