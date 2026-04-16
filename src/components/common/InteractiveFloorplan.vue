@@ -190,18 +190,17 @@ function isRecording(entity: any) {
                                 :stop-opacity="Math.max(0.3, getEntityValues(entity).opacity)" />
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
                         </radialGradient>
+                        <clipPath v-for="entity in props.config.entities" :key="'clip-' + entity.id"
+                            :id="'clip-' + entity.id">
+                            <polygon :points="getPointsString(entity.points)" />
+                        </clipPath>
                     </defs>
-                    <template v-for="entity in props.config.entities" :key="'poly-' + entity.id">
-                        <ellipse v-if="!entity.points || entity.points.length === 0"
-                            :cx="entity.x" :cy="entity.y"
-                            :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
-                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
-                        <polygon v-else
-                            :points="getPointsString(entity.points)"
-                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
-                    </template>
+                    <ellipse v-for="entity in props.config.entities" :key="'poly-' + entity.id"
+                        :cx="entity.x" :cy="entity.y"
+                        :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
+                        :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                        :clip-path="entity.points && entity.points.length > 0 ? `url(#clip-${entity.id})` : undefined"
+                        stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
                 </svg>
 
                 <div v-for="entity in props.config.entities" :key="entity.id" class="interactive-entity"

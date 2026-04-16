@@ -202,11 +202,16 @@ function onPointTouchEnd() {
                   :stop-opacity="entity.style.onOpacity" />
                 <stop offset="100%" :stop-color="(entity.style.colors as any).onColor || '#facc15'" stop-opacity="0" />
               </radialGradient>
+              <clipPath v-for="entity in store.entities" :key="'clip-' + entity.id"
+                :id="'clip-editor-' + entity.id">
+                <polygon :points="getPointsString(entity.points)" />
+              </clipPath>
             </defs>
             <ellipse v-for="entity in store.entities" :key="'poly-' + entity.id"
               :cx="entity.x" :cy="entity.y"
               :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
               :fill="`url(#grad-editor-${entity.id})`"
+              :clip-path="entity.points && entity.points.length > 0 ? `url(#clip-editor-${entity.id})` : undefined"
               stroke="none"
               style="pointer-events: none;" />
             <!-- Polygon outlines for selected entities with points -->
