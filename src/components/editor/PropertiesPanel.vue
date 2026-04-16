@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useFloorplanStore } from '../../stores/floorplan';
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref } from 'vue';
 import { fetchDevices } from '../../utils/api';
 const store = useFloorplanStore();
 
@@ -68,13 +68,11 @@ const version = __APP_VERSION__;
 
 const knownDevices = ref<string[]>([]);
 
-onMounted(async () => {
+async function refreshDevices() {
     try {
         knownDevices.value = await fetchDevices();
-    } catch {
-        // Server may not have seen any devices yet
-    }
-});
+    } catch { /* ignore */ }
+}
 </script>
 
 <template>
@@ -136,7 +134,9 @@ onMounted(async () => {
                         <label>Entity ID</label>
                         <input type="text" v-model="selectedEntity.entityId"
                                placeholder="z2m friendly_name"
-                               list="known-devices-list">
+                               list="known-devices-list"
+                               autocomplete="off"
+                               @focus="refreshDevices">
                         <datalist id="known-devices-list">
                             <option v-for="name in knownDevices" :key="name" :value="name" />
                         </datalist>
