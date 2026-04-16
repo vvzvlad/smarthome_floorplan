@@ -75,3 +75,9 @@ export async function fetchDevices(): Promise<string[]> {
     if (!res.ok) throw new Error('Failed to fetch devices');
     return res.json();
 }
+
+export async function fetchInfo(): Promise<{ title: string }> {
+    const res = await fetch('/api/info');
+    if (!res.ok) return { title: 'HA Floorplan' };
+    return res.json();
+}

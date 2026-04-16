@@ -3,12 +3,13 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { getAuthHeader, fetchConfig, fetchStates } from './utils/api';
+import { getAuthHeader, fetchConfig, fetchStates, fetchInfo } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import type { FloorplanConfig } from './types/floorplan';
 
 const store = useFloorplanStore();
 const isAuthenticated = ref(false);
+const appTitle = ref('HA Floorplan');
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 async function loadStates() {
@@ -48,6 +49,7 @@ async function onLoginSuccess() {
 }
 
 onMounted(async () => {
+    fetchInfo().then(info => { appTitle.value = info.title; }).catch(() => {});
     // If credentials are already stored, try to use them immediately
     if (getAuthHeader()) {
         try {
@@ -69,7 +71,7 @@ onUnmounted(() => {
   <LoginForm v-if="!isAuthenticated" @success="onLoginSuccess" />
   <template v-else>
     <header class="app-header glass-panel">
-      <div class="logo">HA Floorplan</div>
+      <div class="logo">{{ appTitle }}</div>
       <nav>
         <RouterLink to="/" active-class="active">Viewer</RouterLink>
         <RouterLink to="/editor" active-class="active">Editor</RouterLink>

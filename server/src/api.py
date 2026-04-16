@@ -51,6 +51,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+APP_TITLE = os.getenv("APP_TITLE", "HA Floorplan")
+
+
+@app.get("/api/info")
+def get_info():
+    """Return public app metadata. No auth required."""
+    return JSONResponse(content={"title": APP_TITLE})
+
 
 @app.get("/api/config", dependencies=[Depends(verify_auth)])
 def get_config():
