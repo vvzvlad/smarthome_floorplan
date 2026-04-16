@@ -1,26 +1,36 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { FloorplanConfig, EntityConfig, EntityState } from '../types/floorplan';
 import { v4 as uuidv4 } from 'uuid';
-import defaultConfig from '../default_config';
+import { saveConfig, sendCommand } from '../utils/api';
 
 export const useFloorplanStore = defineStore('floorplan', () => {
-    // Initial state from default config
+    // Config starts empty; loaded from server via App.vue on startup
     const config = ref<FloorplanConfig>({
-        ...defaultConfig,
-        id: defaultConfig.id || uuidv4(),
-        entities: defaultConfig.entities || []
-    } as FloorplanConfig);
+        id: uuidv4(),
+        name: 'New Floorplan',
+        imageBase64: '',
+        entities: []
+    });
 
     const selectedEntityId = ref<string | null>(null);
 
-    // Simulation state for experimentation (entity_id -> state)
+    // Runtime device states (entity_id -> state), not persisted in config
     const entityStates = ref<Record<string, EntityState>>({});
 
     const entities = computed(() => config.value.entities);
     const selectedEntity = computed(() =>
         config.value.entities.find(e => e.id === selectedEntityId.value)
     );
+
+    // Auto-save config to server with 2-second debounce
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    watch(config, () => {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            saveConfig(config.value).catch(e => console.error('Auto-save failed:', e));
+        }, 2000);
+    }, { deep: true });
 
     function setBaseImage(base64: string) {
         config.value.imageBase64 = base64;
@@ -38,7 +48,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             points: [],
             shape: 'circle',
             style: {
-                width: 5, // % relative to container width
+                width: 5,
                 height: 5,
                 colors: type === 'camera'
                     ? {
@@ -47,8 +57,8 @@ export const useFloorplanStore = defineStore('floorplan', () => {
                         streamingColor: '#3b82f6'
                     }
                     : {
-                        onColor: '#facc15', // yellow-400
-                        offColor: '#94a3b8', // slate-400
+                        onColor: '#facc15',
+                        offColor: '#94a3b8',
                     },
                 onOpacity: 0.8,
                 offOpacity: 0.3,
@@ -58,7 +68,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             labelConfig: {
                 show: true,
                 offsetX: 0,
-                offsetY: 10, // px or %? Let's assume px for offset relative to center or bottom
+                offsetY: 10,
                 color: '#ffffff',
             }
         };
@@ -84,33 +94,46 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         }
     }
 
-    function toggleEntityState(entityId: string, entityType: string) {
+    async function toggleEntityState(entityId: string, entityType: string) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
-        let newState = current;
+        let newStateStr: string;
+
         if (entityType === 'camera') {
-            if (current.state === 'idle') {
-                newState = { ...current, state: 'streaming' };
-            } else if (current.state === 'streaming') {
-                newState = { ...current, state: 'recording' };
-            } else {
-                newState = { ...current, state: 'idle' };
-            }
-            newState.shouldLightUp = ['streaming', 'recording'].includes(newState.state);
+            if (current.state === 'idle') newStateStr = 'streaming';
+            else if (current.state === 'streaming') newStateStr = 'recording';
+            else newStateStr = 'idle';
         } else {
-            newState = { ...current, state: current.state === 'off' ? 'on' : 'off' };
-            newState.shouldLightUp = newState.state === 'on';
+            newStateStr = current.state === 'off' ? 'on' : 'off';
         }
-        entityStates.value[entityId] = newState;
+
+        // Optimistic local update
+        entityStates.value[entityId] = {
+            state: newStateStr,
+            brightness: current.brightness,
+            shouldLightUp: newStateStr !== 'off' && newStateStr !== 'idle',
+        };
+
+        // Send command to server (only for non-camera entities)
+        if (entityType !== 'camera') {
+            const mqttState = newStateStr === 'on' ? 'ON' : 'OFF';
+            sendCommand(entityId, mqttState).catch(e =>
+                console.error('Failed to send command:', e)
+            );
+        }
     }
 
     function setEntityState(entityId: string, state: string) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
-        entityStates.value[entityId] = { ...current, state: state };
+        entityStates.value[entityId] = {
+            ...current,
+            state,
+            shouldLightUp: state !== 'off' && state !== 'idle',
+        };
     }
 
     function loadConfig(newConfig: FloorplanConfig) {
         config.value = newConfig;
-        // Reset states
+        // Reset runtime states
         entityStates.value = {};
         newConfig.entities.forEach(e => {
             entityStates.value[e.entityId] = { state: 'off', brightness: 255 };
