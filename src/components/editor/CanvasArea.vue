@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { useFloorplanStore } from '../../stores/floorplan';
-import { computed, ref } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import EntityOverlay from './EntityOverlay.vue';
 
 const store = useFloorplanStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDrawing = ref(false);
 const zoomScale = ref(1);
+const svgEl = useTemplateRef<SVGSVGElement>('svgOverlay');
+
+function getSvgAspectRatio(): number {
+    if (!svgEl.value) return 1;
+    const { width, height } = svgEl.value.getBoundingClientRect();
+    return height > 0 ? width / height : 1;
+}
 
 const hasImage = computed(() => !!store.config.imageBase64);
 
@@ -177,7 +184,7 @@ function onPointTouchEnd() {
           :style="{ transform: `scale(${zoomScale})`, transformOrigin: 'top left' }">
           <img :src="store.config.imageBase64" alt="Floorplan Base" draggable="false" />
 
-          <svg class="overlay-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <svg ref="svgOverlay" class="overlay-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
             <defs>
               <radialGradient v-for="entity in store.entities" :key="'grad-' + entity.id"
                 :id="'grad-editor-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
@@ -199,12 +206,16 @@ function onPointTouchEnd() {
                 style="pointer-events: none;" />
             </template>
             <!-- Vertex Handles -->
-            <template v-for="entity in store.entities">
-              <circle v-if="store.selectedEntityId === entity.id" v-for="(point, index) in entity.points"
-                :key="'point-' + entity.id + '-' + index" :cx="point.x" :cy="point.y" r="0.4" fill="var(--color-primary)"
-                stroke="white" stroke-width="0.1" style="cursor: grab; pointer-events: auto;"
-                @mousedown="onPointMouseDown(index, $event)" @touchstart="onPointTouchStart(index, $event)"
-                @click.stop />
+            <template v-for="entity in store.entities" :key="'handles-' + entity.id">
+              <template v-if="store.selectedEntityId === entity.id">
+                <ellipse v-for="(point, index) in entity.points"
+                  :key="'point-' + entity.id + '-' + index" :cx="point.x" :cy="point.y"
+                  rx="0.4" :ry="0.4 * getSvgAspectRatio()"
+                  fill="var(--color-primary)"
+                  stroke="white" stroke-width="0.1" style="cursor: grab; pointer-events: auto;"
+                  @mousedown="onPointMouseDown(index, $event)" @touchstart="onPointTouchStart(index, $event)"
+                  @click.stop />
+              </template>
             </template>
           </svg>
 
