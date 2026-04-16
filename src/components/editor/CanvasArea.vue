@@ -117,6 +117,14 @@ function onPointMouseUp() {
   window.removeEventListener('mouseup', onPointMouseUp);
 }
 
+function onPointDblClick(index: number, event: MouseEvent) {
+  event.stopPropagation();
+  if (!store.selectedEntity) return;
+  const points = [...(store.selectedEntity.points || [])];
+  points.splice(index, 1);
+  store.updateEntity(store.selectedEntity.id, { points });
+}
+
 function onPointTouchStart(index: number, event: TouchEvent) {
   event.stopPropagation();
   draggingKey.value = index;
@@ -205,6 +213,7 @@ function onPointTouchEnd() {
                   fill="var(--color-primary)"
                   stroke="white" stroke-width="0.1" style="cursor: grab; pointer-events: auto;"
                   @mousedown="onPointMouseDown(index, $event)" @touchstart="onPointTouchStart(index, $event)"
+                  @dblclick="onPointDblClick(index, $event)"
                   @click.stop />
               </template>
             </template>
