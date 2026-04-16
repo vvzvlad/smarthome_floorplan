@@ -188,3 +188,9 @@ input:focus {
 .entity-shape {
   /* Style injected via inline styles, but base properties here if needed */
 }
+
+@media (max-width: 768px) {
+  .viewer-area {
+    padding: 0.5rem;
+  }
+}
