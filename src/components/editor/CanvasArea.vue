@@ -344,4 +344,13 @@ function onPointTouchEnd() {
   user-select: none;
   width: 100%;
 }
+@media (max-width: 768px) {
+  .canvas-area {
+    padding: 0.5rem;
+  }
+
+  .scroll-frame {
+    padding: 5px;
+  }
+}
 </style>
