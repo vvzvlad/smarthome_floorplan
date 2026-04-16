@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref } from 'vue';
-import yaml from 'js-yaml';
-import { migrateConfig, needsMigration } from '../../utils/configMigration';
-
 const store = useFloorplanStore();
 
 
@@ -38,95 +35,6 @@ function updateEntityIdSuffix(event: Event, entity: any) {
     // If we wanted to be strict we'd call an action e.g. store.updateEntityId(id, newId)
     // But modifying the property is safe in standard Pinia.
     entity.entityId = `${prefix}${suffix}`;
-}
-
-// Config updaters
-function exportConfigYaml() {
-    const config = JSON.parse(JSON.stringify(store.config)); // Deep copy to avoid mutating store
-
-    // Attempt to format imageBase64 as multiline for readability
-    // We insert spaces, and js-yaml should pick a folded style (>) if it sees spaces and we allow it.
-    if (config.imageBase64 && config.imageBase64.length > 80) {
-        config.imageBase64 = (config.imageBase64.match(/.{1,80}/g) || []).join(' ');
-    }
-
-    const cardConfig = {
-        type: 'custom:ha-floorplan-card',
-        config: config
-    };
-
-    // dump with lineWidth to force wrapping and use block styles where appropriate
-    const yamlStr = yaml.dump(cardConfig, {
-        lineWidth: 80,
-        noRefs: true,
-        quotingType: '"'
-    });
-
-    const filename = config.name
-        ? `${config.name.replace(/[^a-z0-9]/yi, '_').toLowerCase()}.yaml`
-        : 'floorplan-config.yaml';
-    downloadString(yamlStr, filename, "text/yaml");
-}
-
-function downloadString(content: string, filename: string, contentType: string) {
-    const blob = new Blob([content], { type: contentType });
-    const url = URL.createObjectURL(blob);
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", url);
-    downloadAnchorNode.setAttribute("download", filename);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    URL.revokeObjectURL(url);
-}
-
-const importInput = ref<HTMLInputElement | null>(null);
-
-function triggerImport() {
-    importInput.value?.click();
-}
-
-function onImportFile(event: Event) {
-    const target = event.target as HTMLInputElement;
-    if (target.files && target.files[0]) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            if (e.target?.result) {
-                try {
-                    const content = e.target.result as string;
-                    // Try parsing as YAML (superset of JSON, so works for both)
-                    const doc = yaml.load(content) as any;
-
-                    let configToLoad = doc;
-                    // Handle wrapped card config
-                    if (doc && doc.type === 'custom:ha-floorplan-card' && doc.config) {
-                        configToLoad = doc.config;
-                    }
-
-                    // Strip newlines/spaces from imageBase64 if imported from block style
-                    if (configToLoad && configToLoad.imageBase64) {
-                        configToLoad.imageBase64 = configToLoad.imageBase64.replace(/\s/g, '');
-                    }
-
-                    // Apply migration for older configurations
-                    if (needsMigration(configToLoad)) {
-                        console.log('Migrating configuration from old color format...');
-                        configToLoad = migrateConfig(configToLoad);
-                    }
-
-                    if (configToLoad && configToLoad.id && configToLoad.entities) {
-                        store.loadConfig(configToLoad);
-                    } else {
-                        alert('Invalid configuration file: Missing id or entities');
-                    }
-                } catch (err) {
-                    console.error(err);
-                    alert('Error parsing configuration file');
-                }
-            }
-        };
-        reader.readAsText(target.files[0]);
-    }
 }
 
 const replaceImageInput = ref<HTMLInputElement | null>(null);
@@ -207,14 +115,7 @@ const version = __APP_VERSION__;
                     </div>
 
                     <div class="io-actions">
-                        <button class="secondary" @click="clearAll" style="color: var(--color-danger)">Clear
-                            All</button>
-                        <button class="secondary" @click="exportConfigYaml">Export YAML</button>
-                        <!-- <button class="secondary" @click="triggerImport">Import JSON</button> -->
-                        <!-- Import is tricky with YAML without a parser, stick to JSON import? User said "change config format", implies export mainly. Keeping JSON import hidden or converting if needed. -->
-                        <button class="secondary" @click="triggerImport">Import YAML</button>
-                        <input ref="importInput" type="file" accept=".yaml,.yml" class="hidden-input"
-                            @change="onImportFile">
+                        <button class="secondary" @click="clearAll" style="color: var(--color-danger)">Clear All</button>
                     </div>
                 </div>
             </div>
