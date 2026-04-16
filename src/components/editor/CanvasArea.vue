@@ -86,6 +86,11 @@ function onDragOver(event: DragEvent) {
 
 const draggingKey = ref<number | null>(null);
 
+function getPointsString(points?: { x: number, y: number }[]) {
+  if (!points) return '';
+  return points.map(p => `${p.x} ${p.y}`).join(',');
+}
+
 function onPointMouseDown(index: number, event: MouseEvent) {
   event.stopPropagation();
   draggingKey.value = index;
@@ -204,6 +209,14 @@ function onPointTouchEnd() {
               :fill="`url(#grad-editor-${entity.id})`"
               :stroke="store.selectedEntityId === entity.id ? 'var(--color-primary)' : 'none'" stroke-width="0.5"
               style="pointer-events: none;" />
+            <!-- Polygon outlines for selected entities with points -->
+            <template v-for="entity in store.entities" :key="'outline-' + entity.id">
+              <polygon v-if="store.selectedEntityId === entity.id && entity.points && entity.points.length > 1"
+                :points="getPointsString(entity.points)"
+                fill="none"
+                stroke="var(--color-primary)" stroke-width="0.3"
+                style="pointer-events: none;" />
+            </template>
             <!-- Vertex Handles -->
             <template v-for="entity in store.entities" :key="'handles-' + entity.id">
               <template v-if="store.selectedEntityId === entity.id">
