@@ -14,5 +14,13 @@ export default defineConfig({
   },
   build: {
     sourcemap: true
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      }
+    }
   }
 })
