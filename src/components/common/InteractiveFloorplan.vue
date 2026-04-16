@@ -8,7 +8,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'entity-click', entityId: string, type: string): void
+    (e: 'entity-click', entityId: string): void
     (e: 'entity-long-press', entityId: string): void
 }>();
 
@@ -49,7 +49,7 @@ function handlePointerUp(event: PointerEvent, entity: any) {
         const dx = Math.abs(event.clientX - pointerStart.value.x);
         const dy = Math.abs(event.clientY - pointerStart.value.y);
         if (dx < 10 && dy < 10) {
-            emit('entity-click', entity.entityId, entity.type);
+            emit('entity-click', entity.entityId);
         }
     }
     isLongPress.value = false;
@@ -74,7 +74,7 @@ function getEntityValues(entity: any) {
         };
     }
 
-    let color = state.color || colors.onColor;
+    let color = colors.onColor;
     let opacity = style.onOpacity;
 
     if (state.brightness !== undefined) {

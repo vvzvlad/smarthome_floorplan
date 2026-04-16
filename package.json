@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "build:card": "vue-tsc -b && vite build -c vite.config.card.ts",
-    "build:all": "npm run build && npm run build:card",
     "preview": "vite preview"
   },
   "dependencies": {

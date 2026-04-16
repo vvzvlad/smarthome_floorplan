@@ -47,7 +47,6 @@ export interface FloorplanConfig {
 
 export interface EntityState {
   state: string;
-  color?: string; // hex or rgb string
   brightness?: number; // 0-255
   shouldLightUp?: boolean;
 }
