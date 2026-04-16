@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FloorplanConfig, EntityState, CameraColors, BinaryColors } from '../../types/floorplan';
+import type { FloorplanConfig, EntityState, BinaryColors } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
 
 const props = defineProps<{
@@ -65,31 +65,8 @@ function handlePointerLeave() {
 function getEntityValues(entity: any) {
     const state = props.entityStates[entity.entityId] || { state: 'off' };
     const { style } = entity;
-
-    // Handle camera entities with state-specific colors
-    if (entity.type === 'camera') {
-        let color: string;
-        const colors = style.colors as CameraColors;
-        const defaultIdleColor = '#6b7280'; // Gray
-        const defaultRecordingColor = '#ef4444'; // Red
-        const defaultStreamingColor = '#3b82f6'; // Blue
-
-        if (state.state === 'recording') {
-            color = colors.recordingColor || defaultRecordingColor;
-        } else if (state.state === 'streaming') {
-            color = colors.streamingColor || defaultStreamingColor;
-        } else {
-            color = colors.idleColor || defaultIdleColor;
-        }
-
-        return {
-            color,
-            opacity: style.onOpacity
-        };
-    }
-
-    // Handle other entity types
     const colors = style.colors as BinaryColors;
+
     if (state.state == 'off') {
         return {
             color: colors.offColor,
@@ -163,11 +140,6 @@ function getPointsString(points: { x: number, y: number }[]) {
     return points.map(p => `${p.x} ${p.y}`).join(',');
 }
 
-function isRecording(entity: any) {
-    const state = props.entityStates[entity.entityId];
-    return entity.type === 'camera' && state?.state === 'recording';
-}
-
 </script>
 
 <template>
@@ -207,7 +179,7 @@ function isRecording(entity: any) {
                     :style="getEntityPositionStyle(entity)" @pointerdown="handlePointerDown($event, entity)"
                     @pointerup="handlePointerUp($event, entity)" @pointerleave="handlePointerLeave()"
                     :title="entity.label">
-                    <div class="entity-shape" :class="{ 'camera-recording': isRecording(entity) }"
+                    <div class="entity-shape"
                         :style="getEntityVisualStyle(entity)"></div>
                     <div v-if="entity.labelConfig.show && entity.label" class="entity-label" :style="getLabelStyle(entity)"
                         @pointerdown.stop="handlePointerDown($event, entity)"

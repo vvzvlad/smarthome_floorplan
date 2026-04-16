@@ -1,14 +1,8 @@
 /**
  * Configuration Migration Utility
- * 
- * This file contains migration logic for handling older YAML configurations
- * with the previous color property structure. It can be removed once all users
- * have migrated to the new format.
- * 
- * Migration rules:
- * - Only migrate if new 'colors' property is missing
- * - For non-camera entities: onColor, offColor -> colors: {onColor, offColor}
- * - For camera entities: cameraIdleColor, etc. -> colors: {idleColor, recordingColor, streamingColor}
+ *
+ * Migrates older configurations where onColor/offColor were top-level style properties
+ * to the new colors: {onColor, offColor} structure.
  */
 
 import type { FloorplanConfig } from '../types/floorplan';
@@ -31,33 +25,13 @@ function migrateEntityColors(entity: any): any {
 
     const style = entity.style;
 
-    // Check if entity is a camera type
-    if (entity.type === 'camera') {
-        // Migrate camera-specific colors if old properties exist
-        if (style.cameraIdleColor || style.cameraRecordingColor || style.cameraStreamingColor) {
-            style.colors = {
-                idleColor: style.cameraIdleColor || '#6b7280',
-                recordingColor: style.cameraRecordingColor || '#ef4444',
-                streamingColor: style.cameraStreamingColor || '#3b82f6'
-            };
-
-            // Remove old properties
-            delete style.cameraIdleColor;
-            delete style.cameraRecordingColor;
-            delete style.cameraStreamingColor;
-        }
-    } else {
-        // Migrate binary colors (on/off) if old properties exist
-        if (style.onColor || style.offColor) {
-            style.colors = {
-                onColor: style.onColor || '#facc15',
-                offColor: style.offColor || '#94a3b8'
-            };
-
-            // Remove old properties
-            delete style.onColor;
-            delete style.offColor;
-        }
+    if (style.onColor || style.offColor) {
+        style.colors = {
+            onColor: style.onColor || '#facc15',
+            offColor: style.offColor || '#94a3b8'
+        };
+        delete style.onColor;
+        delete style.offColor;
     }
 
     return entity;
@@ -92,16 +66,8 @@ export function needsMigration(config: any): boolean {
 
     return config.entities.some((entity: any) => {
         if (!entity.style) return false;
-
-        // Check if has old properties but no new colors property
-        const hasOldBinaryColors = Boolean(entity.style.onColor || entity.style.offColor);
-        const hasOldCameraColors = Boolean(
-            entity.style.cameraIdleColor ||
-            entity.style.cameraRecordingColor ||
-            entity.style.cameraStreamingColor
-        );
+        const hasOldColors = Boolean(entity.style.onColor || entity.style.offColor);
         const hasNewColors = Boolean(entity.style.colors);
-
-        return (hasOldBinaryColors || hasOldCameraColors) && !hasNewColors;
+        return hasOldColors && !hasNewColors;
     });
 }

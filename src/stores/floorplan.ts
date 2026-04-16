@@ -50,16 +50,10 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             style: {
                 width: 5,
                 height: 5,
-                colors: type === 'camera'
-                    ? {
-                        idleColor: '#6b7280',
-                        recordingColor: '#ef4444',
-                        streamingColor: '#3b82f6'
-                    }
-                    : {
-                        onColor: '#facc15',
-                        offColor: '#94a3b8',
-                    },
+                colors: {
+                    onColor: '#facc15',
+                    offColor: '#94a3b8',
+                },
                 onOpacity: 0.8,
                 offOpacity: 0.3,
                 gradientRadius: 30,
@@ -108,32 +102,21 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         }
     }
 
-    async function toggleEntityState(entityId: string, entityType: string) {
+    async function toggleEntityState(entityId: string) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
-        let newStateStr: string;
-
-        if (entityType === 'camera') {
-            if (current.state === 'idle') newStateStr = 'streaming';
-            else if (current.state === 'streaming') newStateStr = 'recording';
-            else newStateStr = 'idle';
-        } else {
-            newStateStr = current.state === 'off' ? 'on' : 'off';
-        }
+        const newStateStr = current.state === 'off' ? 'on' : 'off';
 
         // Optimistic local update
         entityStates.value[entityId] = {
             state: newStateStr,
             brightness: current.brightness,
-            shouldLightUp: newStateStr !== 'off' && newStateStr !== 'idle',
+            shouldLightUp: newStateStr !== 'off',
         };
 
-        // Send command to server (only for non-camera entities)
-        if (entityType !== 'camera') {
-            const mqttState = newStateStr === 'on' ? 'ON' : 'OFF';
-            sendCommand(entityId, mqttState).catch(e =>
-                console.error('Failed to send command:', e)
-            );
-        }
+        const mqttState = newStateStr === 'on' ? 'ON' : 'OFF';
+        sendCommand(entityId, mqttState).catch(e =>
+            console.error('Failed to send command:', e)
+        );
     }
 
     function setEntityState(entityId: string, state: string) {

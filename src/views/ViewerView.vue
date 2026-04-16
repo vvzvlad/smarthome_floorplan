@@ -8,7 +8,7 @@ const store = useFloorplanStore();
 <template>
   <div class="viewer-view">
     <InteractiveFloorplan :config="store.config" :entity-states="store.entityStates"
-      @entity-click="(id) => store.toggleEntityState(id, store.config.entities.find(e => e.entityId === id)?.type || 'light')" />
+      @entity-click="(id) => store.toggleEntityState(id)" />
   </div>
 </template>
 
@@ -20,20 +20,4 @@ const store = useFloorplanStore();
   flex-direction: column;
 }
 
-/* Blinking animation for camera recording state */
-@keyframes camera-recording-blink {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.camera-recording {
-  animation: camera-recording-blink 2s ease-in-out infinite;
-}
 </style>

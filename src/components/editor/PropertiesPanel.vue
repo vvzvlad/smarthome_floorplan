@@ -148,9 +148,6 @@ function hideDeviceList() {
                         <label>Type</label>
                         <select v-model="selectedEntity.type">
                             <option value="light">Light</option>
-                            <option value="switch">Switch</option>
-                            <option value="media_player">Media Player</option>
-                            <option value="camera">Camera</option>
                         </select>
                     </div>
 
@@ -201,51 +198,20 @@ function hideDeviceList() {
                         </div>
                     </div>
 
-                    <!-- Default Colors - hidden for camera entities -->
-                    <div v-if="selectedEntity.type !== 'camera'">
-                        <div class="section-title">Default Colors</div>
-                        <div class="input-group">
-                            <label>On Color</label>
-                            <div class="color-picker-row">
-                                <input type="color" v-model="(selectedEntity.style.colors as any).onColor">
-                                <input type="text" v-model="(selectedEntity.style.colors as any).onColor">
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label>Off Color</label>
-                            <div class="color-picker-row">
-                                <input type="color" v-model="(selectedEntity.style.colors as any).offColor">
-                                <input type="text" v-model="(selectedEntity.style.colors as any).offColor">
-                            </div>
+                    <div class="section-title">Default Colors</div>
+                    <div class="input-group">
+                        <label>On Color</label>
+                        <div class="color-picker-row">
+                            <input type="color" v-model="(selectedEntity.style.colors as any).onColor">
+                            <input type="text" v-model="(selectedEntity.style.colors as any).onColor">
                         </div>
                     </div>
 
-                    <!-- Camera-specific colors -->
-                    <div v-if="selectedEntity.type === 'camera'">
-                        <div class="section-title">Camera State Colors</div>
-                        <div class="input-group">
-                            <label>Idle/Off Color</label>
-                            <div class="color-picker-row">
-                                <input type="color" v-model="(selectedEntity.style.colors as any).idleColor">
-                                <input type="text" v-model="(selectedEntity.style.colors as any).idleColor">
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label>Recording Color (Blinks)</label>
-                            <div class="color-picker-row">
-                                <input type="color" v-model="(selectedEntity.style.colors as any).recordingColor">
-                                <input type="text" v-model="(selectedEntity.style.colors as any).recordingColor">
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label>Streaming Color</label>
-                            <div class="color-picker-row">
-                                <input type="color" v-model="(selectedEntity.style.colors as any).streamingColor">
-                                <input type="text" v-model="(selectedEntity.style.colors as any).streamingColor">
-                            </div>
+                    <div class="input-group">
+                        <label>Off Color</label>
+                        <div class="color-picker-row">
+                            <input type="color" v-model="(selectedEntity.style.colors as any).offColor">
+                            <input type="text" v-model="(selectedEntity.style.colors as any).offColor">
                         </div>
                     </div>
 
@@ -257,7 +223,7 @@ function hideDeviceList() {
                         </label>
                     </div>
 
-                    <div v-if="['light', 'media_player', 'camera'].includes(selectedEntity.type)">
+                    <div>
                         <div class="section-title">Light Zone</div>
                         <p class="hint small">
                             {{ isDrawing ? 'Click on canvas to add points.' : 'Define a custom shape for light spread.'

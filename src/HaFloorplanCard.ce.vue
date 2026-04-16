@@ -47,27 +47,15 @@ const entityStates = computed(() => {
             let color: string | undefined = undefined;
             let brightness: number | undefined = undefined;
 
-            if (entity.type === 'light') {
-                // Extract attributes for lights
-                if (state == 'on') {
-                    if (haState.attributes.rgb_color) {
-                        color = `rgb(${haState.attributes.rgb_color.join(',')})`;
-                    }
-                    if (haState.attributes.brightness !== undefined) {
-                        brightness = haState.attributes.brightness;
-                    }
+            if (state == 'on') {
+                if (haState.attributes.rgb_color) {
+                    color = `rgb(${haState.attributes.rgb_color.join(',')})`;
                 }
-                const shouldLightUp = state === 'on';
-                states[entity.entityId] = { state, color, brightness, shouldLightUp };
-            } else if (entity.type === 'media_player') {
-                const shouldLightUp = !['off', 'unavailable', 'unknown'].includes(state);
-                states[entity.entityId] = { state, shouldLightUp };
-            } else if (entity.type === 'camera') {
-                const shouldLightUp = ['on', 'recording', 'streaming'].includes(state);
-                states[entity.entityId] = { state, shouldLightUp };
-            } else {
-                states[entity.entityId] = { state };
+                if (haState.attributes.brightness !== undefined) {
+                    brightness = haState.attributes.brightness;
+                }
             }
+            states[entity.entityId] = { state, color, brightness, shouldLightUp: state === 'on' };
         } else {
             states[entity.entityId] = { state: 'off' };
         }
@@ -75,25 +63,9 @@ const entityStates = computed(() => {
     return states;
 });
 
-function handleEntityClick(entityId: string, type: string) {
+function handleEntityClick(entityId: string) {
     if (!props.hass) return;
-
-    if (['light', 'switch', 'media_player'].includes(type)) {
-        props.hass.callService(type, 'toggle', {
-            entity_id: entityId
-        });
-    } else if (type === 'camera') {
-        // Not all cameras support turn_on/turn_off
-        const service = entityStates.value[entityId]?.state == 'idle' ? 'turn_on' : 'turn_off';
-        props.hass.callService('homeassistant', service, {
-            entity_id: entityId
-        });
-    } else {
-        // Default toggle
-        props.hass.callService('homeassistant', 'toggle', {
-            entity_id: entityId
-        });
-    }
+    props.hass.callService('light', 'toggle', { entity_id: entityId });
 }
 
 function handleEntityLongPress(entityId: string) {
@@ -237,20 +209,4 @@ ha-card {
     color: red;
 }
 
-/* Blinking animation for camera recording state */
-@keyframes camera-recording-blink {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.3;
-    }
-}
-
-.camera-recording {
-    animation: camera-recording-blink 2s ease-in-out infinite;
-}
 </style>
