@@ -1,6 +1,7 @@
 # Stage 1: build frontend
 FROM node:22-alpine AS frontend-build
 WORKDIR /app
+RUN apk add --no-cache git
 COPY package*.json ./
 RUN npm ci
 COPY . .

@@ -3,12 +3,7 @@ import vue from '@vitejs/plugin-vue'
 
 import { execSync } from 'child_process';
 
-let commitHash = 'dev';
-try {
-  commitHash = execSync('git describe --tags --always').toString().trim();
-} catch {
-  // git not available (e.g. Docker build without .git)
-}
+const commitHash = execSync('git describe --tags --always').toString().trim();
 
 // https://vite.dev/config/
 export default defineConfig({
