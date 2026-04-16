@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
-# Глобальный словарь состояний: { friendly_name: { "state": "ON" | "OFF" } }
+# Global state dict: { friendly_name: { "state": "ON" | "OFF" } }
 device_states: Dict[str, Dict[str, Any]] = {}
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
@@ -26,8 +26,9 @@ def _make_client_kwargs() -> dict:
 
 
 async def mqtt_listener_loop():
-    """Запускается в фоне при старте приложения.
-    Подписывается на zigbee2mqtt/# и обновляет device_states."""
+    """Background task. Subscribes to zigbee2mqtt/# and updates device_states.
+    Only processes messages with exactly 2 topic parts: zigbee2mqtt/{friendly_name}.
+    Reconnects automatically on connection loss."""
     import aiomqtt
 
     while True:
@@ -38,8 +39,7 @@ async def mqtt_listener_loop():
                 async for message in client.messages:
                     topic = str(message.topic)
                     parts = topic.split("/")
-                    # Нас интересует только zigbee2mqtt/{friendly_name} (ровно 2 части)
-                    # Игнорируем bridge/*, /set, /get, /availability и т.д.
+                    # Only handle zigbee2mqtt/{friendly_name} — skip bridge/*, /set, /get, etc.
                     if len(parts) != 2:
                         continue
                     _, friendly_name = parts
@@ -55,7 +55,7 @@ async def mqtt_listener_loop():
 
 
 async def publish_command(friendly_name: str, state: str) -> None:
-    """Публикует команду в топик zigbee2mqtt/{friendly_name}/set."""
+    """Publish a command to zigbee2mqtt/{friendly_name}/set."""
     import aiomqtt
 
     topic = f"{Z2M_BASE}/{friendly_name}/set"
