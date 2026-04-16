@@ -183,10 +183,16 @@ function isRecording(entity: any) {
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
                         </radialGradient>
                     </defs>
-                    <polygon v-for="entity in props.config.entities" :key="'poly-' + entity.id"
-                        :points="getPointsString(entity.points)"
-                        :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                        stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                    <template v-for="entity in props.config.entities" :key="'poly-' + entity.id">
+                        <rect v-if="!entity.points || entity.points.length === 0"
+                            x="0" y="0" width="100" height="100"
+                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                        <polygon v-else
+                            :points="getPointsString(entity.points)"
+                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                    </template>
                 </svg>
 
                 <div v-for="entity in props.config.entities" :key="entity.id" class="interactive-entity"
