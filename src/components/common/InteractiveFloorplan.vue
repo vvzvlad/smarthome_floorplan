@@ -192,22 +192,11 @@ function isRecording(entity: any) {
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
                         </radialGradient>
                     </defs>
-                    <template v-for="entity in props.config.entities" :key="'poly-' + entity.id">
-                        <ellipse v-if="(!entity.points || entity.points.length === 0) && entity.shape === 'circle'"
-                            :cx="entity.x" :cy="entity.y"
-                            :rx="entity.style.width / 2" :ry="(entity.style.height / 2) * getSvgAspectRatio()"
-                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
-                        <rect v-else-if="!entity.points || entity.points.length === 0"
-                            :x="entity.x - entity.style.width / 2" :y="entity.y - entity.style.height / 2"
-                            :width="entity.style.width" :height="entity.style.height"
-                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
-                        <polygon v-else
-                            :points="getPointsString(entity.points)"
-                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
-                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
-                    </template>
+                    <ellipse v-for="entity in props.config.entities" :key="'poly-' + entity.id"
+                        :cx="entity.x" :cy="entity.y"
+                        :rx="entity.style.width / 2" :ry="(entity.style.height / 2) * getSvgAspectRatio()"
+                        :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                        stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
                 </svg>
 
                 <div v-for="entity in props.config.entities" :key="entity.id" class="interactive-entity"

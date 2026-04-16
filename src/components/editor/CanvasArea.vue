@@ -188,23 +188,19 @@ function onPointTouchEnd() {
             <defs>
               <radialGradient v-for="entity in store.entities" :key="'grad-' + entity.id"
                 :id="'grad-editor-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
-                :r="entity.style.gradientRadius">
+                :r="entity.style.gradientRadius"
+                :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
                 <stop offset="0%" :stop-color="(entity.style.colors as any).onColor || '#facc15'"
                   :stop-opacity="entity.style.onOpacity" />
                 <stop offset="100%" :stop-color="(entity.style.colors as any).onColor || '#facc15'" stop-opacity="0" />
               </radialGradient>
             </defs>
-            <template v-for="entity in store.entities" :key="'poly-' + entity.id">
-              <rect v-if="!entity.points || entity.points.length === 0"
-                x="0" y="0" width="100" height="100"
-                :fill="`url(#grad-editor-${entity.id})`"
-                :stroke="store.selectedEntityId === entity.id ? 'var(--color-primary)' : 'none'" stroke-width="0.5"
-                style="pointer-events: none;" />
-              <polygon v-else
-                :points="getPointsString(entity.points)" :fill="`url(#grad-editor-${entity.id})`"
-                :stroke="store.selectedEntityId === entity.id ? 'var(--color-primary)' : 'none'" stroke-width="0.5"
-                style="pointer-events: none;" />
-            </template>
+            <ellipse v-for="entity in store.entities" :key="'poly-' + entity.id"
+              :cx="entity.x" :cy="entity.y"
+              :rx="entity.style.width / 2" :ry="(entity.style.height / 2) * getSvgAspectRatio()"
+              :fill="`url(#grad-editor-${entity.id})`"
+              :stroke="store.selectedEntityId === entity.id ? 'var(--color-primary)' : 'none'" stroke-width="0.5"
+              style="pointer-events: none;" />
             <!-- Vertex Handles -->
             <template v-for="entity in store.entities" :key="'handles-' + entity.id">
               <template v-if="store.selectedEntityId === entity.id">
