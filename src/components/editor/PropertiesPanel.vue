@@ -17,26 +17,6 @@ function deleteEntity() {
     }
 }
 
-// Helper to handle auto-prefixing
-function getEntitySuffix(fullId: string, type: string): string {
-    const prefix = `${type}.`;
-    if (fullId.startsWith(prefix)) {
-        return fullId.slice(prefix.length);
-    }
-    return fullId; // fallback if prefix missing or mismatch
-}
-
-function updateEntityIdSuffix(event: Event, entity: any) {
-    const input = event.target as HTMLInputElement;
-    const suffix = input.value;
-    const prefix = `${entity.type}.`;
-    // Update the store entity
-    // We modify the reactive object directly here since it's returned by store.selectedEntity
-    // If we wanted to be strict we'd call an action e.g. store.updateEntityId(id, newId)
-    // But modifying the property is safe in standard Pinia.
-    entity.entityId = `${prefix}${suffix}`;
-}
-
 const replaceImageInput = ref<HTMLInputElement | null>(null);
 
 function triggerReplaceImage() {
@@ -143,12 +123,7 @@ const version = __APP_VERSION__;
 
                     <div class="input-group">
                         <label>Entity ID</label>
-                        <div class="id-input-row" style="display: flex; gap: 4px; align-items: center;">
-                            <span class="prefix" style="color: var(--color-text-secondary); font-family: monospace;">{{
-                                selectedEntity.type }}.</span>
-                            <input type="text" :value="getEntitySuffix(selectedEntity.entityId, selectedEntity.type)"
-                                @input="e => updateEntityIdSuffix(e, selectedEntity)">
-                        </div>
+                        <input type="text" v-model="selectedEntity.entityId" placeholder="z2m friendly_name">
                     </div>
 
                     <div class="section-title">Visuals</div>
