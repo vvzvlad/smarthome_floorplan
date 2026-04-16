@@ -189,7 +189,7 @@ function isRecording(entity: any) {
                     </defs>
                     <ellipse v-for="entity in props.config.entities" :key="'poly-' + entity.id"
                         :cx="entity.x" :cy="entity.y"
-                        :rx="entity.style.width / 2" :ry="(entity.style.height / 2) * getSvgAspectRatio()"
+                        :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
                         :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
                         stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
                 </svg>

@@ -205,7 +205,7 @@ function onPointTouchEnd() {
             </defs>
             <ellipse v-for="entity in store.entities" :key="'poly-' + entity.id"
               :cx="entity.x" :cy="entity.y"
-              :rx="entity.style.width / 2" :ry="(entity.style.height / 2) * getSvgAspectRatio()"
+              :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
               :fill="`url(#grad-editor-${entity.id})`"
               :stroke="store.selectedEntityId === entity.id ? 'var(--color-primary)' : 'none'" stroke-width="0.5"
               style="pointer-events: none;" />
