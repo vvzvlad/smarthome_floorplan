@@ -192,7 +192,7 @@ function isRecording(entity: any) {
                         </radialGradient>
                         <clipPath v-for="entity in props.config.entities" :key="'clip-' + entity.id"
                             :id="'clip-' + entity.id">
-                            <polygon :points="getPointsString(entity.points)" />
+                            <polygon :points="getPointsString(entity.points || [])" />
                         </clipPath>
                     </defs>
                     <ellipse v-for="entity in props.config.entities" :key="'poly-' + entity.id"
