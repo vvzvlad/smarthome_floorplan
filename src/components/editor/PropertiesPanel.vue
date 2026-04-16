@@ -18,6 +18,12 @@ function deleteEntity() {
     }
 }
 
+function duplicateEntity() {
+    if (store.selectedEntityId) {
+        store.duplicateEntity(store.selectedEntityId);
+    }
+}
+
 const replaceImageInput = ref<HTMLInputElement | null>(null);
 
 function triggerReplaceImage() {
@@ -269,6 +275,7 @@ function hideDeviceList() {
                     </div>
 
                     <div class="danger-actions" style="margin-top: 1rem;">
+                        <button class="secondary" @click="duplicateEntity">Duplicate Entity</button>
                         <button class="icon-btn danger" @click="deleteEntity">Remove Entity</button>
                     </div>
                 </div>

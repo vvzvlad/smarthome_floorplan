@@ -77,6 +77,20 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         entityStates.value[newEntity.entityId] = { state: 'off', brightness: 255 };
     }
 
+    function duplicateEntity(id: string) {
+        const entity = config.value.entities.find(e => e.id === id);
+        if (!entity) return;
+        const newId = uuidv4();
+        const clone: EntityConfig = JSON.parse(JSON.stringify(entity));
+        clone.id = newId;
+        clone.label = clone.label + ' (copy)';
+        clone.x = Math.min(clone.x + 3, 97);
+        clone.y = Math.min(clone.y + 3, 97);
+        config.value.entities.push(clone);
+        selectedEntityId.value = newId;
+        entityStates.value[clone.entityId] = { state: 'off', brightness: 255 };
+    }
+
     function removeEntity(id: string) {
         const index = config.value.entities.findIndex(e => e.id === id);
         if (index !== -1) {
@@ -159,6 +173,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         entityStates,
         setBaseImage,
         addEntity,
+        duplicateEntity,
         removeEntity,
         updateEntity,
         toggleEntityState,
