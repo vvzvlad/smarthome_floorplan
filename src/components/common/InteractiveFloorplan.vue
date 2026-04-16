@@ -184,8 +184,14 @@ function isRecording(entity: any) {
                         </radialGradient>
                     </defs>
                     <template v-for="entity in props.config.entities" :key="'poly-' + entity.id">
-                        <rect v-if="!entity.points || entity.points.length === 0"
-                            x="0" y="0" width="100" height="100"
+                        <ellipse v-if="(!entity.points || entity.points.length === 0) && entity.shape === 'circle'"
+                            :cx="entity.x" :cy="entity.y"
+                            :rx="entity.style.width / 2" :ry="entity.style.height / 2"
+                            :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
+                            stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
+                        <rect v-else-if="!entity.points || entity.points.length === 0"
+                            :x="entity.x - entity.style.width / 2" :y="entity.y - entity.style.height / 2"
+                            :width="entity.style.width" :height="entity.style.height"
                             :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
                             stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
                         <polygon v-else
