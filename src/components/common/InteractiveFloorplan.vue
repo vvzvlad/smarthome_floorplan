@@ -186,7 +186,7 @@ function isRecording(entity: any) {
                         <radialGradient v-for="entity in props.config.entities" :key="'grad-' + entity.id"
                             :id="'grad-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
                             :r="entity.style.gradientRadius"
-                            :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${1 / getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
+                            :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
                             <stop offset="0%" :stop-color="getEntityValues(entity).color"
                                 :stop-opacity="Math.max(0.3, getEntityValues(entity).opacity)" />
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
@@ -195,7 +195,7 @@ function isRecording(entity: any) {
                     <template v-for="entity in props.config.entities" :key="'poly-' + entity.id">
                         <ellipse v-if="(!entity.points || entity.points.length === 0) && entity.shape === 'circle'"
                             :cx="entity.x" :cy="entity.y"
-                            :rx="entity.style.width / 2" :ry="(entity.style.height / 2) / getSvgAspectRatio()"
+                            :rx="entity.style.width / 2" :ry="(entity.style.height / 2) * getSvgAspectRatio()"
                             :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
                             stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
                         <rect v-else-if="!entity.points || entity.points.length === 0"
