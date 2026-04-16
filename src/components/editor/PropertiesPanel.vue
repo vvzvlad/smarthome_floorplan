@@ -67,11 +67,25 @@ function clearPoints() {
 const version = __APP_VERSION__;
 
 const knownDevices = ref<string[]>([]);
+const showDeviceList = ref(false);
+
+const filteredDevices = computed(() => {
+    const query = (selectedEntity.value?.entityId ?? '').toLowerCase();
+    if (!query) return knownDevices.value;
+    return knownDevices.value.filter(d => d.toLowerCase().includes(query));
+});
 
 async function refreshDevices() {
     try {
         knownDevices.value = await fetchDevices();
     } catch { /* ignore */ }
+}
+
+function selectDevice(name: string) {
+    if (selectedEntity.value) {
+        selectedEntity.value.entityId = name;
+    }
+    showDeviceList.value = false;
 }
 </script>
 
@@ -132,14 +146,20 @@ async function refreshDevices() {
 
                     <div class="input-group">
                         <label>Entity ID</label>
-                        <input type="text" v-model="selectedEntity.entityId"
-                               placeholder="z2m friendly_name"
-                               list="known-devices-list"
-                               autocomplete="off"
-                               @focus="refreshDevices">
-                        <datalist id="known-devices-list">
-                            <option v-for="name in knownDevices" :key="name" :value="name" />
-                        </datalist>
+                        <div class="device-selector">
+                            <input type="text" v-model="selectedEntity.entityId"
+                                   placeholder="z2m friendly_name"
+                                   autocomplete="off"
+                                   @focus="refreshDevices(); showDeviceList = true"
+                                   @blur="setTimeout(() => { showDeviceList = false }, 200)">
+                            <div v-if="showDeviceList && filteredDevices.length > 0" class="device-dropdown">
+                                <div v-for="name in filteredDevices" :key="name"
+                                     class="device-option"
+                                     @mousedown.prevent="selectDevice(name)">
+                                    {{ name }}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="section-title">Visuals</div>
@@ -433,5 +453,34 @@ button.active {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     margin-top: auto;
     /* Pushes to bottom */
+}
+.device-selector {
+    position: relative;
+}
+
+.device-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--color-bg-primary, #1a1a2e);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 200;
+    margin-top: 2px;
+}
+
+.device-option {
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-family: monospace;
+    color: var(--color-text-primary, #fff);
+}
+
+.device-option:hover {
+    background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.08));
 }
 </style>
