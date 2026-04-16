@@ -86,11 +86,6 @@ function onDragOver(event: DragEvent) {
 
 const draggingKey = ref<number | null>(null);
 
-function getPointsString(points?: { x: number, y: number }[]) {
-  if (!points) return '';
-  return points.map(p => `${p.x} ${p.y}`).join(',');
-}
-
 function onPointMouseDown(index: number, event: MouseEvent) {
   event.stopPropagation();
   draggingKey.value = index;

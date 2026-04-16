@@ -159,11 +159,6 @@ function getLabelStyle(entity: any) {
     };
 }
 
-function getPointsString(points?: { x: number, y: number }[]) {
-    if (!points) return '';
-    return points.map(p => `${p.x} ${p.y}`).join(',');
-}
-
 function isRecording(entity: any) {
     const state = props.entityStates[entity.entityId];
     return entity.type === 'camera' && state?.state === 'recording';
