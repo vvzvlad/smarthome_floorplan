@@ -43,7 +43,7 @@ export async function saveConfig(config: object): Promise<void> {
     if (!res.ok) throw new Error('Failed to save config');
 }
 
-export async function fetchStates(): Promise<Record<string, { state: string }>> {
+export async function fetchStates(): Promise<Record<string, Record<string, unknown>>> {
     const res = await apiFetch('/api/states');
     if (!res.ok) throw new Error('Failed to fetch states');
     return res.json();

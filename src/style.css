@@ -185,6 +185,21 @@ input:focus {
   z-index: 10;
 }
 
+.text-entity {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-size: 1.8cqw;
+  font-family: monospace;
+  line-height: 1.4;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+
 .entity-shape {
   /* Style injected via inline styles, but base properties here if needed */
 }

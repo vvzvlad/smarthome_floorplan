@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FloorplanConfig, EntityState, BinaryColors } from '../../types/floorplan';
+import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
 
 const props = defineProps<{
@@ -140,6 +140,30 @@ function getPointsString(points: { x: number, y: number }[]) {
     return points.map(p => `${p.x} ${p.y}`).join(',');
 }
 
+function getTextValue(entity: EntityConfig): string {
+    if (!entity.textConfig) return '';
+    const { jsonPath, format } = entity.textConfig;
+    const raw = props.entityStates[entity.entityId]?.rawPayload;
+    if (!raw) return format.replace('{}', '—');
+    const value = jsonPath.split('.').reduce((acc: unknown, key: string) => {
+        if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
+            return (acc as Record<string, unknown>)[key];
+        }
+        return undefined;
+    }, raw as unknown);
+    return format.replace('{}', value != null ? String(value) : '—');
+}
+
+function getTextPositionStyle(entity: EntityConfig) {
+    return {
+        left: `${entity.x}%`,
+        top: `${entity.y}%`,
+        position: 'absolute' as const,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 1,
+    };
+}
+
 </script>
 
 <template>
@@ -154,7 +178,7 @@ function getPointsString(points: { x: number, y: number }[]) {
 
                 <svg ref="svgOverlay" class="overlay-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <defs>
-                        <radialGradient v-for="entity in props.config.entities" :key="'grad-' + entity.id"
+                        <radialGradient v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="'grad-' + entity.id"
                             :id="'grad-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
                             :r="entity.style.gradientRadius"
                             :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
@@ -162,12 +186,12 @@ function getPointsString(points: { x: number, y: number }[]) {
                                 :stop-opacity="Math.max(0.3, getEntityValues(entity).opacity)" />
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
                         </radialGradient>
-                        <clipPath v-for="entity in props.config.entities" :key="'clip-' + entity.id"
+                        <clipPath v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="'clip-' + entity.id"
                             :id="'clip-' + entity.id">
                             <polygon :points="getPointsString(entity.points || [])" />
                         </clipPath>
                     </defs>
-                    <ellipse v-for="entity in props.config.entities" :key="'poly-' + entity.id"
+                    <ellipse v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="'poly-' + entity.id"
                         :cx="entity.x" :cy="entity.y"
                         :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
                         :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
@@ -175,7 +199,8 @@ function getPointsString(points: { x: number, y: number }[]) {
                         stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />
                 </svg>
 
-                <div v-for="entity in props.config.entities" :key="entity.id" class="interactive-entity"
+                <!-- Light entities -->
+                <div v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="entity.id" class="interactive-entity"
                     :style="getEntityPositionStyle(entity)" @pointerdown="handlePointerDown($event, entity)"
                     @pointerup="handlePointerUp($event, entity)" @pointerleave="handlePointerLeave()"
                     :title="entity.label">
@@ -186,6 +211,12 @@ function getPointsString(points: { x: number, y: number }[]) {
                         @pointerup.stop="handlePointerUp($event, entity)" @pointerleave.stop="handlePointerLeave()">
                         {{ entity.label }}
                     </div>
+                </div>
+
+                <!-- Text entities -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'text')" :key="entity.id"
+                    :style="getTextPositionStyle(entity)" class="text-entity">
+                    {{ getTextValue(entity) }}
                 </div>
             </div>
         </div>

@@ -218,7 +218,21 @@ function onLabelTouchEnd() {
 
 // Style computation
 const styleObject = computed(() => {
-  const { shape, style, x, y } = props.entity;
+  const { shape, style, x, y, type } = props.entity;
+
+  if (type === 'text') {
+    return {
+      left: `${x}%`,
+      top: `${y}%`,
+      position: 'absolute' as const,
+      transform: 'translate(-50%, -50%)',
+      border: isSelected.value ? '2px solid var(--color-primary)' : '2px solid transparent',
+      borderRadius: '4px',
+      cursor: 'move',
+      zIndex: isSelected.value ? 10 : 1,
+      background: 'transparent',
+    };
+  }
 
   // Safely access offColor from union type
   let backgroundColor = '#94a3b8'; // default
@@ -227,7 +241,7 @@ const styleObject = computed(() => {
     backgroundColor = colors.offColor;
   }
 
-  const baseStyle: Record<string, any> = {
+  return {
     left: `${x}%`,
     top: `${y}%`,
     width: `${style.width}%`,
@@ -237,18 +251,10 @@ const styleObject = computed(() => {
     transform: `translate(-50%, -50%) rotate(${style.rotation}deg)`,
     position: 'absolute' as const,
     border: isSelected.value ? '2px solid var(--color-primary)' : '2px solid transparent',
-    borderRadius: shape === 'circle' ? '50%' : '4px', // default for square/rect
+    borderRadius: shape === 'circle' ? '50%' : '4px',
     cursor: 'move',
-    zIndex: isSelected.value ? 10 : 1
+    zIndex: isSelected.value ? 10 : 1,
   };
-
-  if (shape === 'square') {
-    // For square we might want aspect ratio lock, but here w/h are % of parent.
-    // If we want a true square, it's tricky with % unless parent is square.
-    // We will stick to w/h percentages for now.
-  }
-
-  return baseStyle;
 });
 
 const labelStyle = computed(() => {
@@ -259,13 +265,36 @@ const labelStyle = computed(() => {
   };
 });
 
+// Text value extraction for 'text' type entities
+function extractJsonPath(obj: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce((acc: unknown, key: string) => {
+    if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
+}
+
+const textValue = computed(() => {
+  if (props.entity.type !== 'text' || !props.entity.textConfig) return '';
+  const { jsonPath, format } = props.entity.textConfig;
+  const raw = store.entityStates[props.entity.entityId]?.rawPayload;
+  if (!raw) return format.replace('{}', '—');
+  const value = extractJsonPath(raw, jsonPath);
+  return format.replace('{}', value != null ? String(value) : '—');
+});
+
 </script>
 
 <template>
   <div ref="overlayRef" class="entity-overlay" :style="styleObject" @mousedown="onMouseDown" @touchstart="onTouchStart"
     @click.stop>
-    <!-- Optional: Label inside or tooltip? -->
-    <div v-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"
+    <!-- Text entity: show formatted value as a pill -->
+    <div v-if="entity.type === 'text'" class="entity-text-widget">
+      {{ textValue }}
+    </div>
+    <!-- Light entity: show label if enabled -->
+    <div v-else-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"
       @mousedown="onLabelMouseDown" @touchstart="onLabelTouchStart" @click.stop>
       {{ entity.label }}
     </div>
@@ -294,5 +323,18 @@ const labelStyle = computed(() => {
 
 .entity-label:active {
   cursor: grabbing;
+}
+
+.entity-text-widget {
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-family: monospace;
+  line-height: 1.4;
+  pointer-events: none;
+  user-select: none;
 }
 </style>

@@ -12,6 +12,10 @@ function addEntity() {
     store.addEntity('light');
 }
 
+function addTextEntity() {
+    store.addEntity('text');
+}
+
 function deleteEntity() {
     if (store.selectedEntityId) {
         store.removeEntity(store.selectedEntityId);
@@ -97,6 +101,25 @@ function selectDevice(name: string) {
 function hideDeviceList() {
     setTimeout(() => { showDeviceList.value = false; }, 200);
 }
+
+function onTypeChange() {
+    if (!selectedEntity.value) return;
+    if (selectedEntity.value.type === 'text' && !selectedEntity.value.textConfig) {
+        selectedEntity.value.textConfig = { jsonPath: 'temperature', format: '{}' };
+    }
+}
+
+function setTextJsonPath(e: Event) {
+    if (selectedEntity.value?.textConfig) {
+        selectedEntity.value.textConfig.jsonPath = (e.target as HTMLInputElement).value;
+    }
+}
+
+function setTextFormat(e: Event) {
+    if (selectedEntity.value?.textConfig) {
+        selectedEntity.value.textConfig.format = (e.target as HTMLInputElement).value;
+    }
+}
 </script>
 
 <template>
@@ -110,7 +133,8 @@ function hideDeviceList() {
                 <p class="hint">Select an entity to edit properties, or add new items.</p>
 
                 <div class="button-group">
-                    <button @click="addEntity">Add Entity</button>
+                    <button @click="addEntity">Add Light Entity</button>
+                    <button @click="addTextEntity" class="secondary">Add Text Widget</button>
                 </div>
 
                 <div class="config-actions">
@@ -146,8 +170,9 @@ function hideDeviceList() {
                     </div>
                     <div class="input-group">
                         <label>Type</label>
-                        <select v-model="selectedEntity.type">
+                        <select v-model="selectedEntity.type" @change="onTypeChange">
                             <option value="light">Light</option>
+                            <option value="text">Text</option>
                         </select>
                     </div>
 
@@ -169,76 +194,99 @@ function hideDeviceList() {
                         </div>
                     </div>
 
-                    <div class="section-title">Visuals</div>
-
-                    <div class="row">
+                    <!-- Text entity config -->
+                    <template v-if="selectedEntity.type === 'text'">
+                        <div class="section-title">Text Data</div>
                         <div class="input-group">
-                            <label>Shape</label>
-                            <select v-model="selectedEntity.shape">
-                                <option value="circle">Circle</option>
-                                <option value="square">Square</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="input-group">
-                            <label>Width (%)</label>
-                            <input type="number" v-model="selectedEntity.style.width" step="0.1">
+                            <label>JSON Path</label>
+                            <input type="text"
+                                :value="selectedEntity.textConfig?.jsonPath ?? ''"
+                                @input="setTextJsonPath"
+                                placeholder="e.g. temperature">
                         </div>
                         <div class="input-group">
-                            <label>Height (%)</label>
-                            <input type="number" v-model="selectedEntity.style.height" step="0.1">
+                            <label>Format</label>
+                            <input type="text"
+                                :value="selectedEntity.textConfig?.format ?? ''"
+                                @input="setTextFormat"
+                                placeholder="e.g. Temp: {} °C">
                         </div>
-                    </div>
-                    <div class="row">
+                        <p class="hint small">Use <code>{}</code> as placeholder for the value.</p>
+                    </template>
+
+                    <!-- Light entity config -->
+                    <template v-else>
+                        <div class="section-title">Visuals</div>
+
+                        <div class="row">
+                            <div class="input-group">
+                                <label>Shape</label>
+                                <select v-model="selectedEntity.shape">
+                                    <option value="circle">Circle</option>
+                                    <option value="square">Square</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="input-group">
+                                <label>Width (%)</label>
+                                <input type="number" v-model="selectedEntity.style.width" step="0.1">
+                            </div>
+                            <div class="input-group">
+                                <label>Height (%)</label>
+                                <input type="number" v-model="selectedEntity.style.height" step="0.1">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="input-group">
+                                <label>Spread Radius (%)</label>
+                                <input type="number" v-model="selectedEntity.style.gradientRadius" step="1">
+                            </div>
+                        </div>
+
+                        <div class="section-title">Default Colors</div>
                         <div class="input-group">
-                            <label>Spread Radius (%)</label>
-                            <input type="number" v-model="selectedEntity.style.gradientRadius" step="1">
+                            <label>On Color</label>
+                            <div class="color-picker-row">
+                                <input type="color" v-model="(selectedEntity.style.colors as any).onColor">
+                                <input type="text" v-model="(selectedEntity.style.colors as any).onColor">
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="section-title">Default Colors</div>
-                    <div class="input-group">
-                        <label>On Color</label>
-                        <div class="color-picker-row">
-                            <input type="color" v-model="(selectedEntity.style.colors as any).onColor">
-                            <input type="text" v-model="(selectedEntity.style.colors as any).onColor">
+                        <div class="input-group">
+                            <label>Off Color</label>
+                            <div class="color-picker-row">
+                                <input type="color" v-model="(selectedEntity.style.colors as any).offColor">
+                                <input type="text" v-model="(selectedEntity.style.colors as any).offColor">
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="input-group">
-                        <label>Off Color</label>
-                        <div class="color-picker-row">
-                            <input type="color" v-model="(selectedEntity.style.colors as any).offColor">
-                            <input type="text" v-model="(selectedEntity.style.colors as any).offColor">
+                        <div class="section-title">Label Display</div>
+                        <div class="input-group checkbox">
+                            <label>
+                                <input type="checkbox" v-model="selectedEntity.labelConfig.show">
+                                Show Label
+                            </label>
                         </div>
-                    </div>
 
-                    <div class="section-title">Label Display</div>
-                    <div class="input-group checkbox">
-                        <label>
-                            <input type="checkbox" v-model="selectedEntity.labelConfig.show">
-                            Show Label
-                        </label>
-                    </div>
-
-                    <div>
-                        <div class="section-title">Light Zone</div>
-                        <p class="hint small">
-                            {{ isDrawing ? 'Click on canvas to add points.' : 'Define a custom shape for light spread.'
-                            }}
-                        </p>
-                        <div class="input-group inline">
-                            <button @click="$emit('toggle-draw-mode')" :class="{ active: isDrawing }">
-                                {{ isDrawing ? 'Finish' : 'Draw' }}
-                            </button>
-                            <button v-if="selectedEntity.points && selectedEntity.points.length > 0"
-                                @click="clearPoints" class="secondary">
-                                Clear
-                            </button>
+                        <div>
+                            <div class="section-title">Light Zone</div>
+                            <p class="hint small">
+                                {{ isDrawing ? 'Click on canvas to add points.' : 'Define a custom shape for light spread.'
+                                }}
+                            </p>
+                            <div class="input-group inline">
+                                <button @click="$emit('toggle-draw-mode')" :class="{ active: isDrawing }">
+                                    {{ isDrawing ? 'Finish' : 'Draw' }}
+                                </button>
+                                <button v-if="selectedEntity.points && selectedEntity.points.length > 0"
+                                    @click="clearPoints" class="secondary">
+                                    Clear
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    </template>
 
                     <div class="danger-actions" style="margin-top: 1rem;">
                         <button class="secondary" @click="duplicateEntity">Duplicate Entity</button>

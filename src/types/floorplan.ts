@@ -1,4 +1,4 @@
-export type EntityType = 'light';
+export type EntityType = 'light' | 'text';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -23,6 +23,11 @@ export interface LabelConfig {
   color: string;
 }
 
+export interface TextConfig {
+  jsonPath: string;   // e.g. "temperature" or "sensors.co2"
+  format: string;     // e.g. "Temp: {} °C"
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -34,6 +39,7 @@ export interface EntityConfig {
   shape: EntityShape;
   style: EntityStyle;
   labelConfig: LabelConfig;
+  textConfig?: TextConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }
@@ -49,4 +55,5 @@ export interface EntityState {
   state: string;
   brightness?: number; // 0-255
   shouldLightUp?: boolean;
+  rawPayload?: Record<string, unknown>;
 }

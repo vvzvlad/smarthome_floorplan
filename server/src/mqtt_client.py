@@ -46,14 +46,14 @@ async def mqtt_listener_loop():
                     _, friendly_name = parts
                     try:
                         payload = json.loads(message.payload)
-                        if isinstance(payload, dict) and "state" in payload:
-                            new_state = payload["state"]
-                            old = device_states.get(friendly_name, {}).get("state")
-                            device_states[friendly_name] = {"state": new_state}
-                            if old != new_state:
+                        if isinstance(payload, dict):
+                            old_state = device_states.get(friendly_name, {}).get("state")
+                            device_states[friendly_name] = payload
+                            new_state = payload.get("state")
+                            if new_state is not None and old_state != new_state:
                                 logger.info(
                                     "State change: [%s] %s -> %s",
-                                    friendly_name, old if old is not None else "unknown", new_state
+                                    friendly_name, old_state if old_state is not None else "unknown", new_state
                                 )
                     except (json.JSONDecodeError, Exception) as e:
                         logger.debug("Failed to parse MQTT message on %s: %s", topic, e)

@@ -15,8 +15,9 @@ let pollInterval: ReturnType<typeof setInterval> | null = null;
 async function loadStates() {
     try {
         const states = await fetchStates();
-        for (const [friendlyName, s] of Object.entries(states)) {
-            store.setEntityState(friendlyName, s.state === 'ON' ? 'on' : 'off');
+        for (const [friendlyName, payload] of Object.entries(states)) {
+            const stateStr = typeof payload.state === 'string' && payload.state === 'ON' ? 'on' : 'off';
+            store.setEntityState(friendlyName, stateStr, payload);
         }
     } catch (e) {
         console.error('Failed to load states', e);

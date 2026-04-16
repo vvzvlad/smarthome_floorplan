@@ -194,7 +194,7 @@ function onPointTouchEnd() {
 
           <svg ref="svgOverlay" class="overlay-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
             <defs>
-              <radialGradient v-for="entity in store.entities" :key="'grad-' + entity.id"
+              <radialGradient v-for="entity in store.entities.filter(e => e.type !== 'text')" :key="'grad-' + entity.id"
                 :id="'grad-editor-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
                 :r="entity.style.gradientRadius"
                 :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
@@ -202,12 +202,12 @@ function onPointTouchEnd() {
                   :stop-opacity="entity.style.onOpacity" />
                 <stop offset="100%" :stop-color="(entity.style.colors as any).onColor || '#facc15'" stop-opacity="0" />
               </radialGradient>
-              <clipPath v-for="entity in store.entities" :key="'clip-' + entity.id"
+              <clipPath v-for="entity in store.entities.filter(e => e.type !== 'text')" :key="'clip-' + entity.id"
                 :id="'clip-editor-' + entity.id">
                 <polygon :points="getPointsString(entity.points)" />
               </clipPath>
             </defs>
-            <ellipse v-for="entity in store.entities" :key="'poly-' + entity.id"
+            <ellipse v-for="entity in store.entities.filter(e => e.type !== 'text')" :key="'poly-' + entity.id"
               :cx="entity.x" :cy="entity.y"
               :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
               :fill="`url(#grad-editor-${entity.id})`"
@@ -215,7 +215,7 @@ function onPointTouchEnd() {
               stroke="none"
               style="pointer-events: none;" />
             <!-- Polygon outlines for selected entities with points -->
-            <template v-for="entity in store.entities" :key="'outline-' + entity.id">
+            <template v-for="entity in store.entities.filter(e => e.type !== 'text')" :key="'outline-' + entity.id">
               <polygon v-if="store.selectedEntityId === entity.id && entity.points && entity.points.length > 1"
                 :points="getPointsString(entity.points)"
                 fill="none"
@@ -223,7 +223,7 @@ function onPointTouchEnd() {
                 style="pointer-events: none;" />
             </template>
             <!-- Vertex Handles -->
-            <template v-for="entity in store.entities" :key="'handles-' + entity.id">
+            <template v-for="entity in store.entities.filter(e => e.type !== 'text')" :key="'handles-' + entity.id">
               <template v-if="store.selectedEntityId === entity.id">
                 <ellipse v-for="(point, index) in entity.points"
                   :key="'point-' + entity.id + '-' + index" :cx="point.x" :cy="point.y"

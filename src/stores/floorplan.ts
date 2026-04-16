@@ -64,7 +64,13 @@ export const useFloorplanStore = defineStore('floorplan', () => {
                 offsetX: 0,
                 offsetY: 10,
                 color: '#ffffff',
-            }
+            },
+            ...(type === 'text' ? {
+                textConfig: {
+                    jsonPath: 'temperature',
+                    format: '{}'
+                }
+            } : {})
         };
         config.value.entities.push(newEntity);
         selectedEntityId.value = id;
@@ -119,12 +125,13 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         );
     }
 
-    function setEntityState(entityId: string, state: string) {
+    function setEntityState(entityId: string, state: string, rawPayload?: Record<string, unknown>) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
         entityStates.value[entityId] = {
             ...current,
             state,
             shouldLightUp: state !== 'off' && state !== 'idle',
+            ...(rawPayload !== undefined ? { rawPayload } : {}),
         };
     }
 
