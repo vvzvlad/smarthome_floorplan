@@ -16,7 +16,7 @@ async function loadStates() {
     try {
         const states = await fetchStates();
         for (const [friendlyName, payload] of Object.entries(states)) {
-            const stateStr = typeof payload.state === 'string' && payload.state === 'ON' ? 'on' : 'off';
+            const stateStr = typeof payload.state === 'string' && payload.state.toUpperCase() === 'ON' ? 'on' : 'off';
             store.setEntityState(friendlyName, stateStr, payload);
         }
     } catch (e) {

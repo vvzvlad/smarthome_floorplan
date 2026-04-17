@@ -55,7 +55,7 @@ async def mqtt_listener_loop():
                                     "State change: [%s] %s -> %s",
                                     friendly_name, old_state if old_state is not None else "unknown", new_state
                                 )
-                    except (json.JSONDecodeError, Exception) as e:
+                    except Exception as e:
                         logger.debug("Failed to parse MQTT message on %s: %s", topic, e)
         except Exception as e:
             logger.warning("MQTT connection lost: %s. Reconnecting in 5s...", e)

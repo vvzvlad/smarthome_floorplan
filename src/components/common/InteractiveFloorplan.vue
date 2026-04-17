@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
+import { formatTextValue } from '../../utils/textEntity';
 
 const props = defineProps<{
     config: FloorplanConfig,
@@ -143,15 +144,7 @@ function getPointsString(points: { x: number, y: number }[]) {
 function getTextValue(entity: EntityConfig): string {
     if (!entity.textConfig) return '';
     const { jsonPath, format } = entity.textConfig;
-    const raw = props.entityStates[entity.entityId]?.rawPayload;
-    if (!raw) return format.replace('{}', '—');
-    const value = jsonPath.split('.').reduce((acc: unknown, key: string) => {
-        if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
-            return (acc as Record<string, unknown>)[key];
-        }
-        return undefined;
-    }, raw as unknown);
-    return format.replace('{}', value != null ? String(value) : '—');
+    return formatTextValue(format, props.entityStates[entity.entityId]?.rawPayload, jsonPath);
 }
 
 function getTextPositionStyle(entity: EntityConfig) {

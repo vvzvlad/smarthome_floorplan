@@ -105,7 +105,7 @@ function hideDeviceList() {
 function onTypeChange() {
     if (!selectedEntity.value) return;
     if (selectedEntity.value.type === 'text' && !selectedEntity.value.textConfig) {
-        selectedEntity.value.textConfig = { jsonPath: 'temperature', format: '{}' };
+        store.updateEntity(selectedEntity.value.id, { textConfig: { jsonPath: 'temperature', format: '{}' } });
     }
 }
 

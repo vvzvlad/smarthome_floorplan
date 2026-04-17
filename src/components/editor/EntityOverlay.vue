@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import type { EntityConfig } from '../../types/floorplan';
 import { useFloorplanStore } from '../../stores/floorplan';
+import { formatTextValue } from '../../utils/textEntity';
 
 const props = defineProps<{
   entity: EntityConfig
@@ -265,23 +266,10 @@ const labelStyle = computed(() => {
   };
 });
 
-// Text value extraction for 'text' type entities
-function extractJsonPath(obj: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce((acc: unknown, key: string) => {
-    if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[key];
-    }
-    return undefined;
-  }, obj);
-}
-
 const textValue = computed(() => {
   if (props.entity.type !== 'text' || !props.entity.textConfig) return '';
   const { jsonPath, format } = props.entity.textConfig;
-  const raw = store.entityStates[props.entity.entityId]?.rawPayload;
-  if (!raw) return format.replace('{}', '—');
-  const value = extractJsonPath(raw, jsonPath);
-  return format.replace('{}', value != null ? String(value) : '—');
+  return formatTextValue(format, store.entityStates[props.entity.entityId]?.rawPayload, jsonPath);
 });
 
 </script>
@@ -290,7 +278,7 @@ const textValue = computed(() => {
   <div ref="overlayRef" class="entity-overlay" :style="styleObject" @mousedown="onMouseDown" @touchstart="onTouchStart"
     @click.stop>
     <!-- Text entity: show formatted value as a pill -->
-    <div v-if="entity.type === 'text'" class="entity-text-widget">
+    <div v-if="entity.type === 'text'" class="text-entity" style="pointer-events: none; cursor: default;">
       {{ textValue }}
     </div>
     <!-- Light entity: show label if enabled -->
@@ -323,18 +311,5 @@ const textValue = computed(() => {
 
 .entity-label:active {
   cursor: grabbing;
-}
-
-.entity-text-widget {
-  background: rgba(0, 0, 0, 0.7);
-  color: #ffffff;
-  padding: 3px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  font-size: 0.85rem;
-  font-family: monospace;
-  line-height: 1.4;
-  pointer-events: none;
-  user-select: none;
 }
 </style>
