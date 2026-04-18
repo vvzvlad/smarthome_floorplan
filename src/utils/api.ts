@@ -1,16 +1,25 @@
 const SESSION_KEY = 'smarthome_auth';
+const ROLE_KEY = 'smarthome_role';
+
+export type UserRole = 'viewer' | 'editor';
 
 export function getAuthHeader(): string {
     return sessionStorage.getItem(SESSION_KEY) ?? '';
 }
 
-export function setCredentials(username: string, password: string): void {
-    const encoded = btoa(`${username}:${password}`);
+export function getUserRole(): UserRole | null {
+    return sessionStorage.getItem(ROLE_KEY) as UserRole | null;
+}
+
+export function setCredentials(role: UserRole, password: string): void {
+    const encoded = btoa(`${role}:${password}`);
     sessionStorage.setItem(SESSION_KEY, `Basic ${encoded}`);
+    sessionStorage.setItem(ROLE_KEY, role);
 }
 
 export function clearCredentials(): void {
     sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(ROLE_KEY);
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -62,8 +71,8 @@ export async function sendCommand(entityId: string, state: 'ON' | 'OFF'): Promis
  * Test credentials by making a real request to /api/config.
  * Returns true if server responds with 200, false if 401.
  */
-export async function checkCredentials(username: string, password: string): Promise<boolean> {
-    const encoded = btoa(`${username}:${password}`);
+export async function checkCredentials(role: UserRole, password: string): Promise<boolean> {
+    const encoded = btoa(`${role}:${password}`);
     const res = await fetch('/api/config', {
         headers: { Authorization: `Basic ${encoded}` },
     });

@@ -56,6 +56,31 @@ Once the resource is added (via Installation steps above):
 
 ---
 
+## Authentication
+
+The server uses two separate passwords:
+
+| Role | Env variable | Access |
+|------|-------------|--------|
+| `viewer` | `AUTH_PASSWORD` | Read-only: view floorplan, control devices |
+| `editor` | `EDIT_PASSWORD` | Read + write: everything above + save config |
+
+Both variables are required at startup. Set them when running the server:
+
+```bash
+AUTH_PASSWORD=myviewpass EDIT_PASSWORD=myeditpass python server/main.py
+```
+
+Or with Docker:
+
+```
+-e AUTH_PASSWORD=myviewpass -e EDIT_PASSWORD=myeditpass
+```
+
+On the login screen, select the desired role and enter the corresponding password. The Editor tab is only shown when logged in as `editor`.
+
+---
+
 ## Local Development
 
 1. **Install Dependencies**:

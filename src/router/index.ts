@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import ViewerView from '../views/ViewerView.vue';
 import EditorView from '../views/EditorView.vue';
+import { getUserRole } from '../utils/api';
 
 const router = createRouter({
     history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -13,7 +14,10 @@ const router = createRouter({
         {
             path: '/editor',
             name: 'editor',
-            component: EditorView
+            component: EditorView,
+            beforeEnter: () => {
+                if (getUserRole() !== 'editor') return '/';
+            }
         }
     ]
 });
