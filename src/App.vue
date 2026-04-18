@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { RouterView, RouterLink, useRouter } from 'vue-router';
+import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { getAuthHeader, getUserRole, fetchConfig, fetchStates, fetchInfo } from './utils/api';
+import { getAuthHeader, fetchConfig, fetchStates, fetchInfo } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import type { FloorplanConfig } from './types/floorplan';
-import type { UserRole } from './utils/api';
 
 const store = useFloorplanStore();
-const router = useRouter();
 const isAuthenticated = ref(false);
-const userRole = ref<UserRole | null>(null);
 const appTitle = ref('HA Floorplan');
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -47,16 +44,8 @@ async function initApp() {
     pollInterval = setInterval(loadStates, 5000);
 }
 
-async function onLoginSuccess(role: UserRole) {
-    userRole.value = role;
+async function onLoginSuccess() {
     isAuthenticated.value = true;
-    // If viewer tries to access editor, redirect to viewer
-    if (role === 'viewer') {
-        const current = router.currentRoute.value;
-        if (current.name === 'editor') {
-            router.replace('/');
-        }
-    }
     await initApp();
 }
 
@@ -66,15 +55,7 @@ onMounted(async () => {
     if (getAuthHeader()) {
         try {
             await fetchConfig();
-            userRole.value = getUserRole();
             isAuthenticated.value = true;
-            // Redirect viewer away from editor
-            if (userRole.value === 'viewer') {
-                const current = router.currentRoute.value;
-                if (current.name === 'editor') {
-                    router.replace('/');
-                }
-            }
             await initApp();
         } catch {
             isAuthenticated.value = false;
@@ -94,7 +75,7 @@ onUnmounted(() => {
       <div class="logo">{{ appTitle }}</div>
       <nav>
         <RouterLink to="/" active-class="active">Viewer</RouterLink>
-        <RouterLink v-if="userRole === 'editor'" to="/editor" active-class="active">Editor</RouterLink>
+        <RouterLink to="/editor" active-class="active">Editor</RouterLink>
       </nav>
     </header>
 

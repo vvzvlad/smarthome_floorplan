@@ -14,39 +14,22 @@ from .mqtt_client import device_states, mqtt_listener_loop, publish_command
 
 logger = logging.getLogger(__name__)
 
-# AUTH_PASSWORD — viewer (read-only), EDIT_PASSWORD — editor (read+write)
-# Both must be set; main.py exits early if either is missing.
+# AUTH_PASSWORD must be set; main.py exits early if it is missing
 AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "")
-EDIT_PASSWORD = os.getenv("EDIT_PASSWORD", "")
-
-VIEWER_USERNAME = "viewer"
-EDITOR_USERNAME = "editor"
+AUTH_USERNAME = "admin"
 
 security = HTTPBasic()
 
 
-def verify_viewer(credentials: HTTPBasicCredentials = Depends(security)):
-    """Accept viewer OR editor credentials (both can read)."""
-    viewer_ok = secrets.compare_digest(
-        credentials.username.encode(), VIEWER_USERNAME.encode()
-    ) and secrets.compare_digest(credentials.password.encode(), AUTH_PASSWORD.encode())
-    editor_ok = secrets.compare_digest(
-        credentials.username.encode(), EDITOR_USERNAME.encode()
-    ) and secrets.compare_digest(credentials.password.encode(), EDIT_PASSWORD.encode())
-    if not (viewer_ok or editor_ok):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-
-
-def verify_editor(credentials: HTTPBasicCredentials = Depends(security)):
-    """Accept only editor credentials (write access)."""
-    editor_ok = secrets.compare_digest(
-        credentials.username.encode(), EDITOR_USERNAME.encode()
-    ) and secrets.compare_digest(credentials.password.encode(), EDIT_PASSWORD.encode())
-    if not editor_ok:
+def verify_auth(credentials: HTTPBasicCredentials = Depends(security)):
+    """Validate Basic Auth credentials. Raises 401 on mismatch."""
+    username_ok = secrets.compare_digest(
+        credentials.username.encode(), AUTH_USERNAME.encode()
+    )
+    password_ok = secrets.compare_digest(
+        credentials.password.encode(), AUTH_PASSWORD.encode()
+    )
+    if not (username_ok and password_ok):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
@@ -77,31 +60,31 @@ def get_info():
     return JSONResponse(content={"title": APP_TITLE})
 
 
-@app.get("/api/config", dependencies=[Depends(verify_viewer)])
+@app.get("/api/config", dependencies=[Depends(verify_auth)])
 def get_config():
     return JSONResponse(content=read_config())
 
 
-@app.post("/api/config", dependencies=[Depends(verify_editor)])
+@app.post("/api/config", dependencies=[Depends(verify_auth)])
 async def post_config(request: Request):
     body = await request.json()
     write_config(body)
     return JSONResponse(content={"ok": True})
 
 
-@app.get("/api/states", dependencies=[Depends(verify_viewer)])
+@app.get("/api/states", dependencies=[Depends(verify_auth)])
 def get_states():
     """Return last known state of all z2m devices."""
     return JSONResponse(content=device_states)
 
 
-@app.get("/api/devices", dependencies=[Depends(verify_viewer)])
+@app.get("/api/devices", dependencies=[Depends(verify_auth)])
 def get_devices():
     """Return sorted list of known z2m device friendly names."""
     return JSONResponse(content=sorted(device_states.keys()))
 
 
-@app.post("/api/entity/{entity_id:path}/command", dependencies=[Depends(verify_viewer)])
+@app.post("/api/entity/{entity_id:path}/command", dependencies=[Depends(verify_auth)])
 async def post_command(entity_id: str, request: Request):
     """
     Accept a command for a device and forward it to MQTT.

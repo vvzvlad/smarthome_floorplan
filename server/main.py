@@ -8,9 +8,6 @@ def main():
     if not os.getenv("AUTH_PASSWORD"):
         print("ERROR: AUTH_PASSWORD environment variable is required", file=sys.stderr)
         sys.exit(1)
-    if not os.getenv("EDIT_PASSWORD"):
-        print("ERROR: EDIT_PASSWORD environment variable is required", file=sys.stderr)
-        sys.exit(1)
 
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("src.api:app", host="0.0.0.0", port=port, reload=False)
