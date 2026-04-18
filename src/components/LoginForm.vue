@@ -84,6 +84,28 @@ async function submit() {
     gap: 0.75rem;
 }
 
+input[type="password"] {
+    background: var(--color-bg-tertiary, #334155);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--color-text-primary, #f8fafc);
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-sm, 6px);
+    font-size: 1rem;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+input[type="password"]:focus {
+    outline: none;
+    border-color: var(--color-primary, #0ea5e9);
+}
+
+input[type="password"]:disabled {
+    opacity: 0.5;
+}
+
 .error {
     color: #ef4444;
     font-size: 0.85rem;
