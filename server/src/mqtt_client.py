@@ -72,3 +72,15 @@ async def publish_command(friendly_name: str, state: str) -> None:
     async with aiomqtt.Client(**_make_client_kwargs()) as client:
         await client.publish(topic, payload)
     logger.info("Command published: %s -> %s", topic, payload)
+
+
+async def publish_value(friendly_name: str, field: str, value) -> None:
+    """Publish a numeric property set to zigbee2mqtt/{friendly_name}/set, e.g. {"brightness": 128}."""
+    import aiomqtt
+
+    topic = f"{Z2M_BASE}/{friendly_name}/set"
+    payload = json.dumps({field: value})
+    logger.info("Publishing value: [%s] %s -> %s", friendly_name, field, value)
+    async with aiomqtt.Client(**_make_client_kwargs()) as client:
+        await client.publish(topic, payload)
+    logger.info("Value published: %s -> %s", topic, payload)

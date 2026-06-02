@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
-import { formatTextValue } from '../../utils/textEntity';
+import { formatTextValue, extractJsonPath } from '../../utils/textEntity';
 
 const props = defineProps<{
     config: FloorplanConfig,
@@ -11,6 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'entity-click', entityId: string): void
     (e: 'entity-long-press', entityId: string): void
+    (e: 'entity-set-value', entityId: string, field: string, value: number): void
 }>();
 
 const hasImage = computed(() => !!props.config.imageBase64);
@@ -157,6 +158,71 @@ function getTextPositionStyle(entity: EntityConfig) {
     };
 }
 
+function getNumberValue(entity: EntityConfig): number {
+    const cfg = entity.numberConfig;
+    if (!cfg) return 0;
+    const st = props.entityStates[entity.entityId];
+    if (st?.numberValue !== undefined) return st.numberValue; // optimistic / last user value
+    const raw = st?.rawPayload ? extractJsonPath(st.rawPayload, cfg.jsonPath) : undefined;
+    const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
+    return Number.isFinite(n) ? n : cfg.min;
+}
+
+function roundToStep(value: number, step: number): number {
+  // Derive decimal places from the step to avoid floating-point drift
+  // (e.g. 0.1 + 0.2). Handles both "0.25" and exponential "1e-7" forms.
+  const str = Math.abs(step).toString();
+  let decimals = 0;
+  if (str.includes('e-')) {
+    decimals = parseInt(str.split('e-')[1] ?? '', 10) || 0;
+  } else if (str.includes('.')) {
+    decimals = (str.split('.')[1] ?? '').length;
+  }
+  return Number(value.toFixed(Math.min(decimals, 100)));
+}
+
+function stepNumber(entity: EntityConfig, dir: number) {
+  const cfg = entity.numberConfig;
+  if (!cfg) return;
+  const step = Math.abs(cfg.step) || 1;           // guard against 0 / negative step
+  const lo = Math.min(cfg.min, cfg.max);
+  const hi = Math.max(cfg.min, cfg.max);
+  const current = getNumberValue(entity);
+  let next = roundToStep(current + dir * step, step);
+  if (next < lo) next = lo;
+  if (next > hi) next = hi;
+  if (next === current) return;
+  emit('entity-set-value', entity.entityId, cfg.commandField, next);
+}
+
+function getNumberDisplay(entity: EntityConfig): string {
+    const cfg = entity.numberConfig;
+    if (!cfg) return '';
+    const v = getNumberValue(entity);
+    return `${v}${cfg.unit ? ' ' + cfg.unit : ''}`;
+}
+
+function getNumberPositionStyle(entity: EntityConfig) {
+    return {
+        left: `${entity.x}%`,
+        top: `${entity.y}%`,
+        position: 'absolute' as const,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 2,
+    };
+}
+
+function atMin(entity: EntityConfig): boolean {
+  const c = entity.numberConfig;
+  if (!c) return false;
+  return getNumberValue(entity) <= Math.min(c.min, c.max);
+}
+function atMax(entity: EntityConfig): boolean {
+  const c = entity.numberConfig;
+  if (!c) return false;
+  return getNumberValue(entity) >= Math.max(c.min, c.max);
+}
+
 </script>
 
 <template>
@@ -171,7 +237,7 @@ function getTextPositionStyle(entity: EntityConfig) {
 
                 <svg ref="svgOverlay" class="overlay-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <defs>
-                        <radialGradient v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="'grad-' + entity.id"
+                        <radialGradient v-for="entity in props.config.entities.filter(e => e.type === 'light')" :key="'grad-' + entity.id"
                             :id="'grad-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
                             :r="entity.style.gradientRadius"
                             :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
@@ -179,12 +245,12 @@ function getTextPositionStyle(entity: EntityConfig) {
                                 :stop-opacity="Math.max(0.3, getEntityValues(entity).opacity)" />
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
                         </radialGradient>
-                        <clipPath v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="'clip-' + entity.id"
+                        <clipPath v-for="entity in props.config.entities.filter(e => e.type === 'light')" :key="'clip-' + entity.id"
                             :id="'clip-' + entity.id">
                             <polygon :points="getPointsString(entity.points || [])" />
                         </clipPath>
                     </defs>
-                    <ellipse v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="'poly-' + entity.id"
+                    <ellipse v-for="entity in props.config.entities.filter(e => e.type === 'light')" :key="'poly-' + entity.id"
                         :cx="entity.x" :cy="entity.y"
                         :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
                         :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
@@ -193,7 +259,7 @@ function getTextPositionStyle(entity: EntityConfig) {
                 </svg>
 
                 <!-- Light entities -->
-                <div v-for="entity in props.config.entities.filter(e => e.type !== 'text')" :key="entity.id" class="interactive-entity"
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'light')" :key="entity.id" class="interactive-entity"
                     :style="getEntityPositionStyle(entity)" @pointerdown="handlePointerDown($event, entity)"
                     @pointerup="handlePointerUp($event, entity)" @pointerleave="handlePointerLeave()"
                     :title="entity.label">
@@ -210,6 +276,14 @@ function getTextPositionStyle(entity: EntityConfig) {
                 <div v-for="entity in props.config.entities.filter(e => e.type === 'text')" :key="entity.id"
                     :style="getTextPositionStyle(entity)" class="text-entity">
                     {{ getTextValue(entity) }}
+                </div>
+
+                <!-- Number stepper widgets -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'number')" :key="entity.id"
+                    class="number-stepper" :style="getNumberPositionStyle(entity)" :title="entity.label">
+                    <button class="number-btn" :disabled="atMin(entity)" @click.stop="stepNumber(entity, -1)">−</button>
+                    <span class="number-value">{{ getNumberDisplay(entity) }}</span>
+                    <button class="number-btn" :disabled="atMax(entity)" @click.stop="stepNumber(entity, 1)">+</button>
                 </div>
             </div>
         </div>

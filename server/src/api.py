@@ -11,7 +11,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 from .config_store import read_config, write_config
-from .mqtt_client import device_states, mqtt_listener_loop, publish_command
+from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value
 
 logger = logging.getLogger(__name__)
 
@@ -90,15 +90,29 @@ async def post_command(entity_id: str, request: Request):
     """
     Accept a command for a device and forward it to MQTT.
     entity_id is the z2m friendly_name (may contain spaces, URL-encoded as %20).
-    Body: {"state": "ON"} or {"state": "OFF"}
+    Body: {"state": "ON"} | {"state": "OFF"} or {"field": "brightness", "value": 128}
     """
     body = await request.json()
-    state = body.get("state", "").upper()
-    if state not in ("ON", "OFF"):
-        raise HTTPException(status_code=400, detail="state must be ON or OFF")
-    await publish_command(entity_id, state)
-    # Optimistically update in-memory state
-    device_states[entity_id] = {"state": state}
+    # On/off command takes priority: {"state": "ON"|"OFF"}
+    state = body.get("state")
+    if isinstance(state, str) and state.strip():
+        state = state.upper()
+        if state not in ("ON", "OFF"):
+            raise HTTPException(status_code=400, detail="state must be ON or OFF")
+        await publish_command(entity_id, state)
+        device_states[entity_id] = {"state": state}
+        return JSONResponse(content={"ok": True})
+    # Numeric value command: {"field": "brightness", "value": 128}
+    field = body.get("field")
+    value = body.get("value")
+    if not isinstance(field, str) or not field:
+        raise HTTPException(status_code=400, detail="field must be a non-empty string")
+    # bool is a subclass of int in Python — reject it explicitly
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise HTTPException(status_code=400, detail="value must be a number")
+    await publish_value(entity_id, field, value)
+    # Optimistically merge into in-memory state without clobbering other fields
+    device_states.setdefault(entity_id, {})[field] = value
     return JSONResponse(content={"ok": True})
 
 

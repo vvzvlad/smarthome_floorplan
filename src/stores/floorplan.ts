@@ -2,7 +2,8 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import type { FloorplanConfig, EntityConfig, EntityState } from '../types/floorplan';
 import { v4 as uuidv4 } from 'uuid';
-import { saveConfig, sendCommand } from '../utils/api';
+import { saveConfig, sendCommand, sendNumberCommand } from '../utils/api';
+import { extractJsonPath } from '../utils/textEntity';
 
 export const useFloorplanStore = defineStore('floorplan', () => {
     // Config starts empty; loaded from server via App.vue on startup
@@ -70,6 +71,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
                     jsonPath: 'temperature',
                     format: '{}'
                 }
+            } : {}),
+            ...(type === 'number' ? {
+                numberConfig: { jsonPath: 'brightness', commandField: 'brightness', min: 0, max: 100, step: 1, unit: '' }
             } : {})
         };
         config.value.entities.push(newEntity);
@@ -125,14 +129,38 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         );
     }
 
+    async function setEntityNumberValue(entityId: string, field: string, value: number) {
+        const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
+        // Optimistic local update so the stepper reflects the new value immediately
+        entityStates.value[entityId] = { ...current, numberValue: value };
+        sendNumberCommand(entityId, field, value).catch(e =>
+            console.error('Failed to send number command:', e)
+        );
+    }
+
     function setEntityState(entityId: string, state: string, rawPayload?: Record<string, unknown>) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
-        entityStates.value[entityId] = {
+        const next: EntityState = {
             ...current,
             state,
             shouldLightUp: state !== 'off' && state !== 'idle',
             ...(rawPayload !== undefined ? { rawPayload } : {}),
         };
+        // Reconcile optimistic number value: drop the local override only once the
+        // device actually reports the SAME value we sent (confirmed). Comparing for
+        // equality (not just "any finite number") avoids a visible roll-back to the
+        // old device value on the first poll after the user steps.
+        if (rawPayload !== undefined && next.numberValue !== undefined) {
+            const optimistic = next.numberValue;
+            const confirmed = config.value.entities.some(e =>
+                e.type === 'number' &&
+                e.entityId === entityId &&
+                e.numberConfig &&
+                Math.abs(Number(extractJsonPath(rawPayload, e.numberConfig.jsonPath)) - optimistic) < 1e-9
+            );
+            if (confirmed) next.numberValue = undefined;
+        }
+        entityStates.value[entityId] = next;
     }
 
     function loadConfig(newConfig: FloorplanConfig) {
@@ -167,6 +195,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         removeEntity,
         updateEntity,
         toggleEntityState,
+        setEntityNumberValue,
         setEntityState,
         loadConfig,
         clearConfig

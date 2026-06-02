@@ -61,6 +61,15 @@ export async function sendCommand(entityId: string, state: 'ON' | 'OFF'): Promis
     if (!res.ok) throw new Error('Failed to send command');
 }
 
+export async function sendNumberCommand(entityId: string, field: string, value: number): Promise<void> {
+    const encodedId = encodeURIComponent(entityId);
+    const res = await apiFetch(`/api/entity/${encodedId}/command`, {
+        method: 'POST',
+        body: JSON.stringify({ field, value }),
+    });
+    if (!res.ok) throw new Error('Failed to send number command');
+}
+
 /**
  * Test credentials by making a real request to /api/config.
  * Returns true if server responds with 200, false if 401.

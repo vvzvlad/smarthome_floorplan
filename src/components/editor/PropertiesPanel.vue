@@ -17,6 +17,10 @@ function addTextEntity() {
     store.addEntity('text');
 }
 
+function addNumberEntity() {
+    store.addEntity('number');
+}
+
 function deleteEntity() {
     if (store.selectedEntityId) {
         store.removeEntity(store.selectedEntityId);
@@ -142,6 +146,9 @@ function onTypeChange() {
     if (selectedEntity.value.type === 'text' && !selectedEntity.value.textConfig) {
         store.updateEntity(selectedEntity.value.id, { textConfig: { jsonPath: 'temperature', format: '{}' } });
     }
+    if (selectedEntity.value.type === 'number' && !selectedEntity.value.numberConfig) {
+        store.updateEntity(selectedEntity.value.id, { numberConfig: { jsonPath: 'brightness', commandField: 'brightness', min: 0, max: 100, step: 1, unit: '' } });
+    }
 }
 
 function setTextJsonPath(e: Event) {
@@ -153,6 +160,19 @@ function setTextJsonPath(e: Event) {
 function setTextFormat(e: Event) {
     if (selectedEntity.value?.textConfig) {
         selectedEntity.value.textConfig.format = (e.target as HTMLInputElement).value;
+    }
+}
+
+function setNumberField(key: 'jsonPath' | 'commandField' | 'unit', e: Event) {
+    if (selectedEntity.value?.numberConfig) {
+        (selectedEntity.value.numberConfig as any)[key] = (e.target as HTMLInputElement).value;
+    }
+}
+
+function setNumberNum(key: 'min' | 'max' | 'step', e: Event) {
+    if (selectedEntity.value?.numberConfig) {
+        const n = parseFloat((e.target as HTMLInputElement).value);
+        if (!Number.isNaN(n)) (selectedEntity.value.numberConfig as any)[key] = n;
     }
 }
 </script>
@@ -170,6 +190,7 @@ function setTextFormat(e: Event) {
                 <div class="button-group">
                     <button @click="addEntity">Add Light Entity</button>
                     <button @click="addTextEntity" class="secondary">Add Text Widget</button>
+                    <button @click="addNumberEntity" class="secondary">Add Number Selector</button>
                 </div>
 
                 <div class="config-actions">
@@ -221,6 +242,7 @@ function setTextFormat(e: Event) {
                         <select v-model="selectedEntity.type" @change="onTypeChange">
                             <option value="light">Light</option>
                             <option value="text">Text</option>
+                            <option value="number">Number</option>
                         </select>
                     </div>
 
@@ -260,6 +282,42 @@ function setTextFormat(e: Event) {
                                 placeholder="e.g. Temp: {} °C">
                         </div>
                         <p class="hint small">Use <code>{}</code> as placeholder for the value.</p>
+                    </template>
+
+                    <!-- Number entity config -->
+                    <template v-else-if="selectedEntity.type === 'number'">
+                        <div class="section-title">Number Range</div>
+                        <div class="input-group">
+                            <label>Read JSON Path</label>
+                            <input type="text" :value="selectedEntity.numberConfig?.jsonPath ?? ''"
+                                @input="setNumberField('jsonPath', $event)" placeholder="e.g. brightness">
+                        </div>
+                        <div class="input-group">
+                            <label>Command Field (MQTT)</label>
+                            <input type="text" :value="selectedEntity.numberConfig?.commandField ?? ''"
+                                @input="setNumberField('commandField', $event)" placeholder="e.g. brightness">
+                        </div>
+                        <div class="row">
+                            <div class="input-group">
+                                <label>Min</label>
+                                <input type="number" :value="selectedEntity.numberConfig?.min ?? 0" @input="setNumberNum('min', $event)">
+                            </div>
+                            <div class="input-group">
+                                <label>Max</label>
+                                <input type="number" :value="selectedEntity.numberConfig?.max ?? 100" @input="setNumberNum('max', $event)">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="input-group">
+                                <label>Step</label>
+                                <input type="number" :value="selectedEntity.numberConfig?.step ?? 1" step="any" @input="setNumberNum('step', $event)">
+                            </div>
+                            <div class="input-group">
+                                <label>Unit</label>
+                                <input type="text" :value="selectedEntity.numberConfig?.unit ?? ''" @input="setNumberField('unit', $event)" placeholder="°C, %">
+                            </div>
+                        </div>
+                        <p class="hint small">Buttons send <code>{commandField: value}</code> to the device.</p>
                     </template>
 
                     <!-- Light entity config -->

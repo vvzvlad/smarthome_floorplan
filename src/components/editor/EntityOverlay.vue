@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import type { EntityConfig } from '../../types/floorplan';
 import { useFloorplanStore } from '../../stores/floorplan';
-import { formatTextValue } from '../../utils/textEntity';
+import { formatTextValue, extractJsonPath } from '../../utils/textEntity';
 
 const props = defineProps<{
   entity: EntityConfig
@@ -221,7 +221,7 @@ function onLabelTouchEnd() {
 const styleObject = computed(() => {
   const { shape, style, x, y, type } = props.entity;
 
-  if (type === 'text') {
+  if (type === 'text' || type === 'number') {
     return {
       left: `${x}%`,
       top: `${y}%`,
@@ -272,6 +272,21 @@ const textValue = computed(() => {
   return formatTextValue(format, store.entityStates[props.entity.entityId]?.rawPayload, jsonPath);
 });
 
+const numberDisplay = computed(() => {
+  if (props.entity.type !== 'number' || !props.entity.numberConfig) return '';
+  const cfg = props.entity.numberConfig;
+  const st = store.entityStates[props.entity.entityId];
+  let val: number;
+  if (st?.numberValue !== undefined) {
+    val = st.numberValue;
+  } else {
+    const raw = st?.rawPayload ? extractJsonPath(st.rawPayload, cfg.jsonPath) : undefined;
+    const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
+    val = Number.isFinite(n) ? n : cfg.min;
+  }
+  return `${val}${cfg.unit ? ' ' + cfg.unit : ''}`;
+});
+
 </script>
 
 <template>
@@ -280,6 +295,12 @@ const textValue = computed(() => {
     <!-- Text entity: show formatted value as a pill -->
     <div v-if="entity.type === 'text'" class="text-entity" style="pointer-events: none; cursor: default;">
       {{ textValue }}
+    </div>
+    <!-- Number entity: non-interactive stepper preview for placement -->
+    <div v-else-if="entity.type === 'number'" class="number-stepper" style="pointer-events:none;">
+      <span class="number-btn">−</span>
+      <span class="number-value">{{ numberDisplay }}</span>
+      <span class="number-btn">+</span>
     </div>
     <!-- Light entity: show label if enabled -->
     <div v-else-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"

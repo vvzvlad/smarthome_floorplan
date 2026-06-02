@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text';
+export type EntityType = 'light' | 'text' | 'number';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -28,6 +28,15 @@ export interface TextConfig {
   format: string;     // e.g. "Temp: {} °C"
 }
 
+export interface NumberConfig {
+  jsonPath: string;     // property in device payload holding the current value, e.g. "brightness"
+  commandField: string; // MQTT property name to write on change, e.g. "brightness"
+  min: number;
+  max: number;
+  step: number;         // increment / precision
+  unit: string;         // suffix shown after the value, e.g. "°C", "%", "" for none
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -40,6 +49,7 @@ export interface EntityConfig {
   style: EntityStyle;
   labelConfig: LabelConfig;
   textConfig?: TextConfig;
+  numberConfig?: NumberConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }
@@ -56,4 +66,5 @@ export interface EntityState {
   brightness?: number; // 0-255
   shouldLightUp?: boolean;
   rawPayload?: Record<string, unknown>;
+  numberValue?: number; // optimistic local value for number widgets
 }

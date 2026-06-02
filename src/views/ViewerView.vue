@@ -8,7 +8,8 @@ const store = useFloorplanStore();
 <template>
   <div class="viewer-view">
     <InteractiveFloorplan :config="store.config" :entity-states="store.entityStates"
-      @entity-click="(id) => store.toggleEntityState(id)" />
+      @entity-click="(id) => store.toggleEntityState(id)"
+      @entity-set-value="(id, field, value) => store.setEntityNumberValue(id, field, value)" />
   </div>
 </template>
 
