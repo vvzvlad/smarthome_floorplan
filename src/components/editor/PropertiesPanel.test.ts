@@ -256,3 +256,43 @@ describe('PropertiesPanel — download config', () => {
         expect(revokeSpy).toHaveBeenCalledTimes(1)
     })
 })
+
+describe('PropertiesPanel — upload config', () => {
+    beforeEach(() => vi.clearAllMocks())
+    // Restore window.confirm / any spyOn-created spies after each test.
+    afterEach(() => vi.restoreAllMocks())
+
+    it('renders an Upload Config button', async () => {
+        const { wrapper } = mountNoSelection(makeConfig(lightEntity()))
+        await flushPromises()
+
+        const btn = wrapper.findAll('button').find((b) => b.text() === 'Upload Config')
+        expect(btn).toBeTruthy()
+    })
+
+    it('parses + validates the picked file and calls store.importConfig with it', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+        const { wrapper, store } = mountNoSelection(makeConfig(lightEntity()))
+        await flushPromises()
+
+        const imported = { id: 'imp', name: 'Imported', imageBase64: '', entities: [] }
+        const file = new File([JSON.stringify(imported)], 'cfg.json', { type: 'application/json' })
+
+        // Multiple file inputs exist (image, icon, config); pick the JSON one.
+        const input = wrapper.findAll('input[type=file]').find((i) => i.attributes('accept')?.includes('json'))
+        expect(input).toBeTruthy()
+        const inputEl = input!.element as HTMLInputElement
+        Object.defineProperty(inputEl, 'files', { value: [file], configurable: true })
+
+        await input!.trigger('change')
+        await flushPromises()
+        // file.text() is async; let its microtasks settle.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(store.importConfig).toHaveBeenCalledTimes(1)
+        const arg = (store.importConfig as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0] as FloorplanConfig
+        expect(arg.name).toBe('Imported')
+        expect(arg.entities).toHaveLength(0)
+    })
+})

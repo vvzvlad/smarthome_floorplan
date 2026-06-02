@@ -519,6 +519,39 @@ describe('loadConfig', () => {
     })
 })
 
+describe('importConfig', () => {
+    it('loads the imported config and reseeds entityStates', () => {
+        const store = useFloorplanStore()
+        store.entityStates['stale.entity'] = { state: 'on', brightness: 1 }
+
+        const cfg = makeConfig([numberEntity({ entityId: 'number.imported' })])
+        cfg.name = 'Imported'
+        store.importConfig(cfg)
+
+        expect(store.config.name).toBe('Imported')
+        expect(store.entities).toHaveLength(1)
+        // Stale runtime state is wiped; imported entity is seeded.
+        expect(store.entityStates['stale.entity']).toBeUndefined()
+        expect(store.entityStates['number.imported']).toEqual({ state: 'off', brightness: 255 })
+    })
+
+    it('persists the imported config exactly once, synchronously (no extra debounced save)', async () => {
+        const store = useFloorplanStore()
+        const cfg = makeConfig([numberEntity({ entityId: 'number.imported' })])
+
+        store.importConfig(cfg)
+        // Import persists immediately, not after the 2000ms debounce.
+        expect(saveConfigMock).toHaveBeenCalledTimes(1)
+        expect(saveConfigMock).toHaveBeenCalledWith(store.config)
+
+        // loadConfig's skipNextSave must have suppressed the watcher's save, so
+        // advancing past the debounce window adds no additional call.
+        vi.advanceTimersByTime(2000)
+        await nextTick()
+        expect(saveConfigMock).toHaveBeenCalledTimes(1)
+    })
+})
+
 describe('clearConfig', () => {
     it('resets config to empty, clears selection and entityStates', () => {
         const store = useFloorplanStore()

@@ -233,6 +233,14 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         });
     }
 
+    function importConfig(newConfig: FloorplanConfig) {
+        // Load an externally-provided config (an imported JSON file) and persist it.
+        // loadConfig suppresses the auto-save for its own mutation, so push the
+        // imported config to the server explicitly here.
+        loadConfig(newConfig);
+        saveConfig(config.value).catch(e => console.error('Failed to save imported config:', e));
+    }
+
     function clearConfig() {
         config.value = {
             id: uuidv4(),
@@ -263,6 +271,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         setEntityState,
         setTopicValues,
         loadConfig,
+        importConfig,
         clearConfig
     };
 });

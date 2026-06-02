@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
-import { migrateConfig, needsMigration } from './configMigration'
+import { migrateConfig, needsMigration, normalizeImportedConfig } from './configMigration'
 
 // Helpers to build minimal entity-shaped objects for the migration logic.
 // We only populate the fields the migration code inspects (style.*).
@@ -135,6 +135,68 @@ describe('migrateConfig / migrateEntityColors', () => {
         // Documented behavior: same object, mutated in place.
         expect(result).toBe(cfg as any)
         expect((result.entities as any)[0].style.colors).toBeDefined()
+    })
+})
+
+describe('normalizeImportedConfig', () => {
+    it('throws for non-object inputs', () => {
+        expect(() => normalizeImportedConfig(null)).toThrow()
+        expect(() => normalizeImportedConfig(42)).toThrow()
+        expect(() => normalizeImportedConfig('x')).toThrow()
+        expect(() => normalizeImportedConfig([])).toThrow()
+    })
+
+    it('throws when entities is missing or not an array', () => {
+        expect(() => normalizeImportedConfig({ name: 'x' })).toThrow()
+        expect(() => normalizeImportedConfig({ entities: 'nope' })).toThrow()
+    })
+
+    it('throws when an entity is not an object', () => {
+        expect(() => normalizeImportedConfig({ entities: [null] })).toThrow()
+        expect(() => normalizeImportedConfig({ entities: ['x'] })).toThrow()
+    })
+
+    it('passes a valid minimal config through', () => {
+        const cfg = { id: 'a', name: 'N', imageBase64: '', entities: [] }
+        const result = normalizeImportedConfig(cfg)
+        expect(result).toEqual({ id: 'a', name: 'N', imageBase64: '', entities: [] })
+    })
+
+    it('strips whitespace from imageBase64', () => {
+        const result = normalizeImportedConfig({
+            id: 'a', name: 'N', imageBase64: 'data:image/png;base64,AA\nAA ', entities: [],
+        })
+        expect(result.imageBase64).toBe('data:image/png;base64,AAAA')
+    })
+
+    it('fills default name when missing', () => {
+        const result = normalizeImportedConfig({ id: 'a', imageBase64: '', entities: [] })
+        expect(result.name).toBe('Imported Floorplan')
+    })
+
+    it('fills a non-empty id when missing or empty', () => {
+        const missing = normalizeImportedConfig({ name: 'N', imageBase64: '', entities: [] })
+        expect(typeof missing.id).toBe('string')
+        expect(missing.id).toBeTruthy()
+
+        const empty = normalizeImportedConfig({ id: '', name: 'N', imageBase64: '', entities: [] })
+        expect(typeof empty.id).toBe('string')
+        expect(empty.id).toBeTruthy()
+    })
+
+    it('runs color migration on imported entities', () => {
+        const result = normalizeImportedConfig({
+            id: 'a',
+            name: 'N',
+            imageBase64: '',
+            entities: [
+                { id: 'e1', entityId: 'x', label: 'l', type: 'light', x: 0, y: 0, shape: 'circle', style: { onColor: '#abcdef' } },
+            ],
+        })
+        const style = (result.entities[0] as any).style
+        expect(style.colors).toEqual({ onColor: '#abcdef', offColor: '#94a3b8' })
+        expect('onColor' in style).toBe(false)
+        expect('offColor' in style).toBe(false)
     })
 })
 

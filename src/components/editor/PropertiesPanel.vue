@@ -5,6 +5,7 @@ import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils
 import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
 import { sanitizeFilenameBase, triggerDownload } from '../../utils/download';
 import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig } from '../../utils/entityForm';
+import { normalizeImportedConfig } from '../../utils/configMigration';
 const store = useFloorplanStore();
 
 
@@ -80,6 +81,29 @@ function downloadConfig() {
     // Revoke on the next tick so the browser has taken the blob first; revoking
     // synchronously right after click() can cancel the download in some browsers.
     setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+const configInput = ref<HTMLInputElement | null>(null);
+
+function triggerConfigUpload() {
+    configInput.value?.click();
+}
+
+async function onConfigFile(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+    try {
+        const parsed = JSON.parse(await file.text());
+        const imported = normalizeImportedConfig(parsed);
+        if (!confirm('Replace the current floorplan with the imported config?')) return;
+        store.importConfig(imported);
+    } catch (e) {
+        console.error('Config import failed', e);
+        alert(`Failed to import config: ${e instanceof Error ? e.message : 'invalid file'}`);
+    } finally {
+        target.value = ''; // allow re-selecting the same file
+    }
 }
 
 const iconInput = ref<HTMLInputElement | null>(null);
@@ -285,6 +309,8 @@ function setToggleNum(key: 'size', e: Event) {
 
                     <div class="io-actions">
                         <button class="secondary" @click="downloadConfig">Download Config</button>
+                        <button class="secondary" @click="triggerConfigUpload">Upload Config</button>
+                        <input ref="configInput" type="file" accept="application/json,.json" class="hidden-input" @change="onConfigFile">
                         <button class="secondary" @click="clearAll" style="color: var(--color-danger)">Clear All</button>
                     </div>
                 </div>
