@@ -48,7 +48,7 @@ export interface ButtonConfig {
 export interface ToggleConfig {
   readTopic: string;    // MQTT topic to read the current raw value from
   writeTopic: string;   // MQTT topic to publish to on toggle
-  onValue: string;      // raw value representing/Publishing the ON state
+  onValue: string;      // raw value representing/publishing the ON state
   offValue: string;     // raw value representing/publishing the OFF state
   size: number;         // base size in cqw; scales the whole switch
 }

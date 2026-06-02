@@ -204,6 +204,8 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         }
         // Reconcile toggle widgets: drop the optimistic state once the read topic
         // reports the value we just published (on -> onValue, off -> offValue).
+        // Only reconcile on an UNAMBIGUOUS report: if onValue === offValue
+        // (misconfig) the raw value matches both, so keep the optimistic state.
         for (const e of config.value.entities) {
             if (e.type !== 'toggle' || !e.toggleConfig) continue;
             const st = entityStates.value[e.entityId];
@@ -211,7 +213,8 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             const raw = values[e.toggleConfig.readTopic];
             if (raw === undefined) continue;
             const expected = st.toggleOn ? e.toggleConfig.onValue : e.toggleConfig.offValue;
-            if (raw === expected) {
+            const opposite = st.toggleOn ? e.toggleConfig.offValue : e.toggleConfig.onValue;
+            if (raw === expected && raw !== opposite) {
                 entityStates.value[e.entityId] = { ...st, toggleOn: undefined };
             }
         }

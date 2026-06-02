@@ -177,6 +177,19 @@ describe('setTopicValues', () => {
         store.setTopicValues({ 'z/lamp/state': 'OFF' })
         expect(store.entityStates['toggle.lamp'].toggleOn).toBe(true)
     })
+
+    it('retains optimistic toggleOn when onValue === offValue (ambiguous report)', () => {
+        const store = useFloorplanStore()
+        // Misconfig: onValue and offValue are identical, so a reported value
+        // matches BOTH states -> the report is ambiguous and must not reconcile.
+        store.loadConfig(makeConfig([toggleEntity({
+            toggleConfig: { readTopic: 'z/lamp/state', writeTopic: 'z/lamp/set', onValue: '1', offValue: '1', size: 2.5 },
+        })]))
+        store.entityStates['toggle.lamp'] = { state: 'off', brightness: 255, toggleOn: true }
+
+        store.setTopicValues({ 'z/lamp/state': '1' })
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBe(true)
+    })
 })
 
 describe('toggleEntityState', () => {
