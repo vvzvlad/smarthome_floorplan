@@ -539,7 +539,10 @@ describe('importConfig', () => {
         const store = useFloorplanStore()
         const cfg = makeConfig([numberEntity({ entityId: 'number.imported' })])
 
-        store.importConfig(cfg)
+        const result = store.importConfig(cfg)
+        // importConfig now returns the save promise so callers can await it and
+        // surface a failed server write.
+        expect(typeof (result as Promise<void>)?.then).toBe('function')
         // Import persists immediately, not after the 2000ms debounce.
         expect(saveConfigMock).toHaveBeenCalledTimes(1)
         expect(saveConfigMock).toHaveBeenCalledWith(store.config)

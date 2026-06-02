@@ -156,6 +156,12 @@ describe('normalizeImportedConfig', () => {
         expect(() => normalizeImportedConfig({ entities: ['x'] })).toThrow()
     })
 
+    it('throws when an entity is missing required string fields (id/entityId/type)', () => {
+        expect(() => normalizeImportedConfig({ id: 'a', name: 'N', imageBase64: '', entities: [{ foo: 1 }] })).toThrow()
+        // Has id but is missing entityId/type.
+        expect(() => normalizeImportedConfig({ id: 'a', name: 'N', imageBase64: '', entities: [{ id: 'x' }] })).toThrow()
+    })
+
     it('passes a valid minimal config through', () => {
         const cfg = { id: 'a', name: 'N', imageBase64: '', entities: [] }
         const result = normalizeImportedConfig(cfg)

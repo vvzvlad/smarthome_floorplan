@@ -79,6 +79,9 @@ export function needsMigration(config: any): boolean {
  * floorplan config. Applies the same normalization used when loading from the
  * server: strips whitespace from the image Data URI and runs the color-format
  * migration. Intended for re-importing a previously exported config.
+ *
+ * NOTE: this normalizes the passed object IN PLACE (and returns it). It is meant
+ * for a freshly-parsed JSON value, so mutating the input is safe.
  */
 export function normalizeImportedConfig(raw: unknown): FloorplanConfig {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -88,11 +91,21 @@ export function normalizeImportedConfig(raw: unknown): FloorplanConfig {
     if (!Array.isArray(obj.entities)) {
         throw new Error('Config is missing an "entities" array');
     }
-    // Every entity must at least be an object (guards against garbage files).
-    if (obj.entities.some((e) => !e || typeof e !== 'object' || Array.isArray(e))) {
+    // Every entity must be an object carrying the fields the app relies on: the
+    // store indexes entityStates by entityId, and rendering needs a type. Require
+    // id/entityId/type to be strings (guards against garbage or partial files).
+    const isValidEntity = (e: unknown): boolean => {
+        if (!e || typeof e !== 'object' || Array.isArray(e)) return false;
+        const rec = e as Record<string, unknown>;
+        return typeof rec.id === 'string'
+            && typeof rec.entityId === 'string'
+            && typeof rec.type === 'string';
+    };
+    if (!obj.entities.every(isValidEntity)) {
         throw new Error('Config contains an invalid entity');
     }
-    // Normalize image Data URI (strip stray whitespace/newlines), like initApp does.
+    // Normalize the image Data URI: strip stray whitespace/newlines, and coerce a
+    // missing or non-string value to an empty string.
     obj.imageBase64 = typeof obj.imageBase64 === 'string' ? obj.imageBase64.replace(/\s/g, '') : '';
     if (typeof obj.name !== 'string') obj.name = 'Imported Floorplan';
     if (typeof obj.id !== 'string' || obj.id === '') obj.id = uuidv4();

@@ -97,7 +97,7 @@ async function onConfigFile(event: Event) {
         const parsed = JSON.parse(await file.text());
         const imported = normalizeImportedConfig(parsed);
         if (!confirm('Replace the current floorplan with the imported config?')) return;
-        store.importConfig(imported);
+        await store.importConfig(imported);
     } catch (e) {
         console.error('Config import failed', e);
         alert(`Failed to import config: ${e instanceof Error ? e.message : 'invalid file'}`);

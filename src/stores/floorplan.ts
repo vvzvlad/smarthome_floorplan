@@ -236,9 +236,10 @@ export const useFloorplanStore = defineStore('floorplan', () => {
     function importConfig(newConfig: FloorplanConfig) {
         // Load an externally-provided config (an imported JSON file) and persist it.
         // loadConfig suppresses the auto-save for its own mutation, so push the
-        // imported config to the server explicitly here.
+        // imported config to the server explicitly here. Return the save promise so
+        // callers can await persistence and surface a failed server write.
         loadConfig(newConfig);
-        saveConfig(config.value).catch(e => console.error('Failed to save imported config:', e));
+        return saveConfig(config.value);
     }
 
     function clearConfig() {
