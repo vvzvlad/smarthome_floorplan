@@ -115,6 +115,18 @@ def number_write_topics(config: dict) -> set:
     return topics
 
 
+def button_topics(config: dict) -> set:
+    """Collect non-empty topics of all button widgets in the config."""
+    topics = set()
+    for e in config.get("entities", []) or []:
+        if e.get("type") == "button":
+            cfg = e.get("buttonConfig") or {}
+            t = cfg.get("topic")
+            if isinstance(t, str) and t.strip():
+                topics.add(t)
+    return topics
+
+
 async def mqtt_listener_loop():
     """Background task. Subscribes to zigbee2mqtt/# and updates device_states.
     Only processes messages with exactly 2 topic parts: zigbee2mqtt/{friendly_name}.

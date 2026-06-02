@@ -24,6 +24,21 @@ def _number_config(read_topic="sensors/temp", write_topic="cmd/topic"):
     }
 
 
+def _button_config(topic="btn/topic", value="ON", text="Send"):
+    """Minimal config with one button widget so its topic is allow-listed."""
+    return {
+        "id": "x",
+        "name": "Plan",
+        "imageBase64": "",
+        "entities": [
+            {
+                "type": "button",
+                "buttonConfig": {"topic": topic, "value": value, "text": text},
+            }
+        ],
+    }
+
+
 def test_info_public(client):
     resp = client.get("/api/info")
     assert resp.status_code == 200
@@ -227,6 +242,20 @@ def test_mqtt_publish_happy_string(auth_client, monkeypatch):
     resp = auth_client.post("/api/mqtt/publish", json={"topic": "cmd/topic", "value": "hi"})
     assert resp.status_code == 200
     assert sent == {"topic": "cmd/topic", "value": "hi"}
+
+
+def test_mqtt_publish_button_topic_allowed(auth_client, monkeypatch):
+    sent = {}
+
+    async def fake_publish_raw(topic, value):
+        sent["topic"], sent["value"] = topic, value
+
+    monkeypatch.setattr(api, "publish_raw", fake_publish_raw)
+    # A button widget's topic must be allow-listed for publishing.
+    auth_client.post("/api/config", json=_button_config(topic="btn/topic", value="ON"))
+    resp = auth_client.post("/api/mqtt/publish", json={"topic": "btn/topic", "value": "ON"})
+    assert resp.status_code == 200
+    assert sent == {"topic": "btn/topic", "value": "ON"}
 
 
 # --------------------------------------------------------------------------- #

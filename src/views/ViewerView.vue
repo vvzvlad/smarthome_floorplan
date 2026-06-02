@@ -10,7 +10,8 @@ const store = useFloorplanStore();
     <InteractiveFloorplan :config="store.config" :entity-states="store.entityStates"
       :topic-values="store.topicValues"
       @entity-click="(id) => store.toggleEntityState(id)"
-      @entity-set-value="(id, topic, value) => store.setNumberValue(id, topic, value)" />
+      @entity-set-value="(id, topic, value) => store.setNumberValue(id, topic, value)"
+      @entity-send="(topic, value) => store.sendButtonValue(topic, value)" />
   </div>
 </template>
 

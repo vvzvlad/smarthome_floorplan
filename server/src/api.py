@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config_store import read_config, write_config
-from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value, topic_values, publish_raw, number_read_topics, number_write_topics
+from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value, topic_values, publish_raw, number_read_topics, number_write_topics, button_topics
 from .settings import settings
 
 logger = logging.getLogger(__name__)
@@ -191,10 +191,11 @@ async def post_mqtt_publish(request: Request):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise HTTPException(status_code=400, detail="value must be a string or number")
         value = str(value)
-    # Only allow publishing to topics that are actually configured as a number
-    # widget's write topic — don't let the endpoint publish to arbitrary topics.
-    if topic not in number_write_topics(read_config()):
-        raise HTTPException(status_code=403, detail="topic is not a configured write topic")
+    cfg = read_config()
+    # Allow publishing only to topics that are configured as a number widget's
+    # write topic OR a button widget's topic — never arbitrary topics.
+    if topic not in (number_write_topics(cfg) | button_topics(cfg)):
+        raise HTTPException(status_code=403, detail="topic is not a configured publish topic")
     await publish_raw(topic, value)
     return JSONResponse(content={"ok": True})
 

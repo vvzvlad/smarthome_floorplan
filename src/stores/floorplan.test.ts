@@ -202,6 +202,20 @@ describe('setNumberValue', () => {
     })
 })
 
+describe('sendButtonValue', () => {
+    it('topic present -> publishRaw(topic, value)', () => {
+        const store = useFloorplanStore()
+        store.sendButtonValue('home/scene', 'ON')
+        expect(publishRawMock).toHaveBeenCalledWith('home/scene', 'ON')
+    })
+
+    it('empty topic -> early return, publishRaw not called', () => {
+        const store = useFloorplanStore()
+        store.sendButtonValue('', 'ON')
+        expect(publishRawMock).not.toHaveBeenCalled()
+    })
+})
+
 describe('setEntityState', () => {
     it("'on' -> shouldLightUp true", () => {
         const store = useFloorplanStore()
@@ -266,6 +280,16 @@ describe('addEntity', () => {
         const e = store.config.entities[0]
         expect(e.numberConfig).toBeDefined()
         expect(e.numberConfig).toMatchObject({ readTopic: '', writeTopic: '', min: 0, max: 100, step: 1 })
+        expect(e.textConfig).toBeUndefined()
+    })
+
+    it("'button' -> buttonConfig seeded with defaults", () => {
+        const store = useFloorplanStore()
+        store.addEntity('button')
+        const e = store.config.entities[0]
+        expect(e.type).toBe('button')
+        expect(e.buttonConfig).toEqual({ topic: '', value: '', text: 'Send', size: 2.5 })
+        expect(e.numberConfig).toBeUndefined()
         expect(e.textConfig).toBeUndefined()
     })
 

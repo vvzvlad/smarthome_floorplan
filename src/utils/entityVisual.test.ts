@@ -79,6 +79,15 @@ describe('entityStyle', () => {
     expect(s.border).toBe('2px solid var(--color-primary)')
     expect(s.zIndex).toBe(10)
   })
+
+  it('button type: same transparent move handle, no width/height', () => {
+    const s = entityStyle(lightEntity({ type: 'button' }), false)
+    expect(s.background).toBe('transparent')
+    expect(s.transform).toBe('translate(-50%, -50%)')
+    expect(s.borderRadius).toBe('4px')
+    expect(s.width).toBeUndefined()
+    expect(s.height).toBeUndefined()
+  })
 })
 
 describe('labelTransform', () => {

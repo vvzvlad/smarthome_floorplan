@@ -5,6 +5,7 @@ import { useFloorplanStore } from '../../stores/floorplan';
 import { formatTextValue } from '../../utils/textEntity';
 import { dragDeltaPercent } from '../../utils/coords';
 import { resolveNumberValue, formatNumberDisplay } from '../../utils/numberWidget';
+import { formatButtonLabel } from '../../utils/buttonWidget';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
 
 const props = defineProps<{
@@ -230,6 +231,12 @@ const numberDisplay = computed(() => {
 
 const numberSize = computed(() => `${props.entity.numberConfig?.size ?? 2.5}cqw`);
 
+const buttonLabel = computed(() => {
+  if (props.entity.type !== 'button' || !props.entity.buttonConfig) return '';
+  return formatButtonLabel(props.entity.buttonConfig.text, props.entity.label);
+});
+const buttonSize = computed(() => `${props.entity.buttonConfig?.size ?? 2.5}cqw`);
+
 </script>
 
 <template>
@@ -245,6 +252,11 @@ const numberSize = computed(() => `${props.entity.numberConfig?.size ?? 2.5}cqw`
       <span class="number-btn">−</span>
       <span class="number-value">{{ numberDisplay }}</span>
       <span class="number-btn">+</span>
+    </div>
+    <!-- Button entity: non-interactive button preview for placement -->
+    <div v-else-if="entity.type === 'button'" class="button-widget"
+      :style="{ fontSize: buttonSize, pointerEvents: 'none' }">
+      <span class="button-widget-btn">{{ buttonLabel }}</span>
     </div>
     <!-- Light entity: show label if enabled -->
     <div v-else-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"

@@ -3,7 +3,7 @@ import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng } from '../../utils/image';
-import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig } from '../../utils/entityForm';
+import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig } from '../../utils/entityForm';
 const store = useFloorplanStore();
 
 
@@ -20,6 +20,10 @@ function addTextEntity() {
 
 function addNumberEntity() {
     store.addEntity('number');
+}
+
+function addButtonEntity() {
+    store.addEntity('button');
 }
 
 function deleteEntity() {
@@ -148,6 +152,9 @@ function onTypeChange() {
     if (selectedEntity.value.type === 'number' && !selectedEntity.value.numberConfig) {
         store.updateEntity(selectedEntity.value.id, { numberConfig: defaultNumberConfig() });
     }
+    if (selectedEntity.value.type === 'button' && !selectedEntity.value.buttonConfig) {
+        store.updateEntity(selectedEntity.value.id, { buttonConfig: defaultButtonConfig() });
+    }
 }
 
 function setTextJsonPath(e: Event) {
@@ -174,6 +181,18 @@ function setNumberNum(key: 'min' | 'max' | 'step' | 'size', e: Event) {
         if (n !== null) (selectedEntity.value.numberConfig as any)[key] = n;
     }
 }
+
+function setButtonField(key: 'topic' | 'value' | 'text', e: Event) {
+    if (selectedEntity.value?.buttonConfig) {
+        (selectedEntity.value.buttonConfig as any)[key] = (e.target as HTMLInputElement).value;
+    }
+}
+function setButtonNum(key: 'size', e: Event) {
+    if (selectedEntity.value?.buttonConfig) {
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) (selectedEntity.value.buttonConfig as any)[key] = n;
+    }
+}
 </script>
 
 <template>
@@ -190,6 +209,7 @@ function setNumberNum(key: 'min' | 'max' | 'step' | 'size', e: Event) {
                     <button @click="addEntity">Add Light Entity</button>
                     <button @click="addTextEntity" class="secondary">Add Text Widget</button>
                     <button @click="addNumberEntity" class="secondary">Add Number Selector</button>
+                    <button @click="addButtonEntity" class="secondary">Add Button Widget</button>
                 </div>
 
                 <div class="config-actions">
@@ -242,6 +262,7 @@ function setNumberNum(key: 'min' | 'max' | 'step' | 'size', e: Event) {
                             <option value="light">Light</option>
                             <option value="text">Text</option>
                             <option value="number">Number</option>
+                            <option value="button">Button</option>
                         </select>
                     </div>
 
@@ -321,6 +342,31 @@ function setNumberNum(key: 'min' | 'max' | 'step' | 'size', e: Event) {
                             <input type="number" :value="selectedEntity.numberConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setNumberNum('size', $event)">
                         </div>
                         <p class="hint small">Publishes the raw value (no JSON) to the write topic; reads it from the read topic.</p>
+                    </template>
+
+                    <!-- Button entity config -->
+                    <template v-else-if="selectedEntity.type === 'button'">
+                        <div class="section-title">Button Action</div>
+                        <div class="input-group">
+                            <label>Topic</label>
+                            <input type="text" :value="selectedEntity.buttonConfig?.topic ?? ''"
+                                @input="setButtonField('topic', $event)" placeholder="e.g. home/room/scene">
+                        </div>
+                        <div class="input-group">
+                            <label>Value</label>
+                            <input type="text" :value="selectedEntity.buttonConfig?.value ?? ''"
+                                @input="setButtonField('value', $event)" placeholder="e.g. ON">
+                        </div>
+                        <div class="input-group">
+                            <label>Button Text</label>
+                            <input type="text" :value="selectedEntity.buttonConfig?.text ?? ''"
+                                @input="setButtonField('text', $event)" placeholder="e.g. Send">
+                        </div>
+                        <div class="input-group">
+                            <label>Size</label>
+                            <input type="number" :value="selectedEntity.buttonConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setButtonNum('size', $event)">
+                        </div>
+                        <p class="hint small">Publishes the raw value to the topic on click.</p>
                     </template>
 
                     <!-- Light entity config -->

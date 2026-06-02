@@ -11,6 +11,7 @@ from src.mqtt_client import (
     build_value_payload,
     number_read_topics,
     number_write_topics,
+    button_topics,
     _make_client_kwargs,
 )
 
@@ -150,6 +151,54 @@ def test_number_read_topics(config, expected):
 )
 def test_number_write_topics(config, expected):
     assert number_write_topics(config) == expected
+
+
+# --------------------------------------------------------------------------- #
+# UNIT: button_topics
+# --------------------------------------------------------------------------- #
+def _btn(topic=None, with_cfg=True):
+    e = {"type": "button"}
+    if with_cfg:
+        cfg = {}
+        if topic is not None:
+            cfg["topic"] = topic
+        e["buttonConfig"] = cfg
+    else:
+        e["buttonConfig"] = None
+    return e
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        # happy path
+        ({"entities": [_btn(topic="b/1")]}, {"b/1"}),
+        # entities key missing entirely
+        ({}, set()),
+        # entities None
+        ({"entities": None}, set()),
+        # entities empty
+        ({"entities": []}, set()),
+        # buttonConfig is None
+        ({"entities": [_btn(with_cfg=False)]}, set()),
+        # topic missing
+        ({"entities": [_btn(topic=None)]}, set()),
+        # topic empty string
+        ({"entities": [_btn(topic="")]}, set()),
+        # topic whitespace only
+        ({"entities": [_btn(topic="   ")]}, set()),
+        # topic non-string dropped
+        ({"entities": [_btn(topic=123)]}, set()),
+        # non-button entity type ignored
+        ({"entities": [{"type": "light", "buttonConfig": {"topic": "x"}}]}, set()),
+        # dedup of identical topics
+        ({"entities": [_btn(topic="b/1"), _btn(topic="b/1")]}, {"b/1"}),
+        # multiple distinct
+        ({"entities": [_btn(topic="b/1"), _btn(topic="b/2")]}, {"b/1", "b/2"}),
+    ],
+)
+def test_button_topics(config, expected):
+    assert button_topics(config) == expected
 
 
 # --------------------------------------------------------------------------- #

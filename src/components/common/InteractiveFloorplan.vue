@@ -9,6 +9,7 @@ import {
   isAtMax,
   formatNumberDisplay,
 } from '../../utils/numberWidget';
+import { formatButtonLabel } from '../../utils/buttonWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 
 const props = defineProps<{
@@ -21,6 +22,7 @@ const emit = defineEmits<{
     (e: 'entity-click', entityId: string): void
     (e: 'entity-long-press', entityId: string): void
     (e: 'entity-set-value', entityId: string, writeTopic: string, value: number): void
+    (e: 'entity-send', topic: string, value: string): void
 }>();
 
 const hasImage = computed(() => !!props.config.imageBase64);
@@ -196,6 +198,29 @@ function getNumberPositionStyle(entity: EntityConfig) {
   };
 }
 
+function getButtonLabel(entity: EntityConfig): string {
+  if (!entity.buttonConfig) return '';
+  return formatButtonLabel(entity.buttonConfig.text, entity.label);
+}
+
+function getButtonPositionStyle(entity: EntityConfig) {
+  const size = entity.buttonConfig?.size ?? 2.5;
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 2,
+    fontSize: `${size}cqw`,
+  };
+}
+
+function sendButton(entity: EntityConfig) {
+  const cfg = entity.buttonConfig;
+  if (!cfg) return;
+  emit('entity-send', cfg.topic, cfg.value);
+}
+
 function atMin(entity: EntityConfig): boolean {
   const c = entity.numberConfig;
   if (!c) return false;
@@ -268,6 +293,12 @@ function atMax(entity: EntityConfig): boolean {
                     <button class="number-btn" :disabled="atMin(entity)" @click.stop="stepNumber(entity, -1)">−</button>
                     <span class="number-value">{{ getNumberDisplay(entity) }}</span>
                     <button class="number-btn" :disabled="atMax(entity)" @click.stop="stepNumber(entity, 1)">+</button>
+                </div>
+
+                <!-- Button widgets -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'button')" :key="entity.id"
+                    class="button-widget" :style="getButtonPositionStyle(entity)" :title="entity.label">
+                    <button class="button-widget-btn" @click.stop="sendButton(entity)">{{ getButtonLabel(entity) }}</button>
                 </div>
             </div>
         </div>

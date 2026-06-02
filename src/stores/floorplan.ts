@@ -84,6 +84,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             } : {}),
             ...(type === 'number' ? {
                 numberConfig: { readTopic: '', writeTopic: '', min: 0, max: 100, step: 1, unit: '', size: 2.5 }
+            } : {}),
+            ...(type === 'button' ? {
+                buttonConfig: { topic: '', value: '', text: 'Send', size: 2.5 }
             } : {})
         };
         config.value.entities.push(newEntity);
@@ -147,6 +150,15 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         entityStates.value[entityId] = { ...current, numberValue: value };
         publishRaw(writeTopic, String(value)).catch(e =>
             console.error('Failed to publish value:', e)
+        );
+    }
+
+    function sendButtonValue(topic: string, value: string) {
+        // Stateless: a button just publishes its configured value. Without a topic
+        // there is nothing to send.
+        if (!topic) return;
+        publishRaw(topic, value).catch(e =>
+            console.error('Failed to publish button value:', e)
         );
     }
 
@@ -216,6 +228,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         updateEntity,
         toggleEntityState,
         setNumberValue,
+        sendButtonValue,
         setEntityState,
         setTopicValues,
         loadConfig,

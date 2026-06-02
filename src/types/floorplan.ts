@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text' | 'number';
+export type EntityType = 'light' | 'text' | 'number' | 'button';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -38,6 +38,13 @@ export interface NumberConfig {
   size: number;         // base font size in cqw; scales the whole stepper widget
 }
 
+export interface ButtonConfig {
+  topic: string;   // MQTT topic to publish to on click
+  value: string;   // raw value (no JSON) to publish
+  text: string;    // button caption shown on the widget
+  size: number;    // base font size in cqw; scales the whole widget
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -51,6 +58,7 @@ export interface EntityConfig {
   labelConfig: LabelConfig;
   textConfig?: TextConfig;
   numberConfig?: NumberConfig;
+  buttonConfig?: ButtonConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }
