@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useFloorplanStore } from '../../stores/floorplan';
-import { computed, ref } from 'vue';
-import { fetchDevices } from '../../utils/api';
+import { computed, ref, onMounted } from 'vue';
+import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
+import { resizeImageToPng } from '../../utils/image';
 const store = useFloorplanStore();
 
 
@@ -44,6 +45,49 @@ function onReplaceImageFile(event: Event) {
             }
         };
         reader.readAsDataURL(target.files[0]);
+    }
+}
+
+const iconInput = ref<HTMLInputElement | null>(null);
+const hasCustomIcon = ref(false);
+const iconVersion = ref(0);
+// Cache-busting query so the <img> preview refreshes after upload/reset.
+const iconPreviewSrc = computed(() => `/apple-touch-icon.png?v=${iconVersion.value}`);
+
+onMounted(async () => {
+    try {
+        hasCustomIcon.value = (await getIconStatus()).custom;
+    } catch { /* ignore: icon status is non-critical */ }
+});
+
+function triggerIconUpload() {
+    iconInput.value?.click();
+}
+
+async function onIconFile(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+    try {
+        const png = await resizeImageToPng(file, 180);
+        await uploadIcon(png);
+        hasCustomIcon.value = true;
+        iconVersion.value++;
+    } catch (e) {
+        console.error('Icon upload failed', e);
+        alert('Failed to upload icon');
+    } finally {
+        target.value = '';
+    }
+}
+
+async function resetIcon() {
+    try {
+        await deleteIcon();
+        hasCustomIcon.value = false;
+        iconVersion.value++;
+    } catch (e) {
+        console.error('Icon reset failed', e);
     }
 }
 
@@ -149,6 +193,19 @@ function setTextFormat(e: Event) {
                         <button class="secondary small" @click="triggerReplaceImage">Replace Image</button>
                         <input ref="replaceImageInput" type="file" accept="image/*" class="hidden-input"
                             @change="onReplaceImageFile">
+                    </div>
+
+                    <div class="input-group">
+                        <label>App Icon (Home Screen)</label>
+                        <div class="app-icon-row">
+                            <img :src="iconPreviewSrc" alt="App icon preview" class="app-icon-preview" />
+                            <div class="app-icon-buttons">
+                                <button class="secondary small" @click="triggerIconUpload">Upload</button>
+                                <button v-if="hasCustomIcon" class="secondary small" @click="resetIcon">Standard</button>
+                            </div>
+                        </div>
+                        <input ref="iconInput" type="file" accept="image/*" class="hidden-input" @change="onIconFile">
+                        <p class="hint small">Resized to 180x180. On iPhone, re-add to Home Screen to apply a changed icon.</p>
                     </div>
 
                     <div class="io-actions">
@@ -452,6 +509,27 @@ function setTextFormat(e: Event) {
 
 .hidden-input {
     display: none;
+}
+
+.app-icon-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.app-icon-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    object-fit: cover;
+    background: var(--color-bg-tertiary);
+    flex-shrink: 0;
+}
+
+.app-icon-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
 button.active {

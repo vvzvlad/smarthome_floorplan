@@ -81,3 +81,23 @@ export async function fetchInfo(): Promise<{ title: string }> {
     if (!res.ok) return { title: 'HA Floorplan' };
     return res.json();
 }
+
+export async function getIconStatus(): Promise<{ custom: boolean }> {
+    const res = await apiFetch('/api/icon');
+    if (!res.ok) throw new Error('Failed to fetch icon status');
+    return res.json();
+}
+
+export async function uploadIcon(png: Blob): Promise<void> {
+    const res = await apiFetch('/api/icon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/png' },
+        body: png,
+    });
+    if (!res.ok) throw new Error('Failed to upload icon');
+}
+
+export async function deleteIcon(): Promise<void> {
+    const res = await apiFetch('/api/icon', { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete icon');
+}
