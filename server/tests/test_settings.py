@@ -47,3 +47,31 @@ def test_log_level_invalid_rejected(monkeypatch):
     monkeypatch.setenv("LOG_LEVEL", "verbose")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [("false", False), ("true", True), ("0", False), ("1", True)],
+)
+def test_cookie_secure_string_parsing(monkeypatch, raw, expected):
+    monkeypatch.setenv("AUTH_PASSWORD", "pw")
+    monkeypatch.setenv("MQTT_HOST", "broker")
+    monkeypatch.setenv("COOKIE_SECURE", raw)
+    s = Settings(_env_file=None)
+    assert s.cookie_secure is expected
+
+
+def test_auth_password_set_but_mqtt_host_missing(monkeypatch):
+    # Required-field asymmetry: AUTH_PASSWORD present, MQTT_HOST missing -> fails.
+    monkeypatch.setenv("AUTH_PASSWORD", "pw")
+    monkeypatch.delenv("MQTT_HOST", raising=False)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_mqtt_host_set_but_auth_password_missing(monkeypatch):
+    # The reverse: MQTT_HOST present, AUTH_PASSWORD missing -> fails.
+    monkeypatch.delenv("AUTH_PASSWORD", raising=False)
+    monkeypatch.setenv("MQTT_HOST", "broker")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

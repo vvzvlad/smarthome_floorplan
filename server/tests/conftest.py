@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import api
-from src.mqtt_client import device_states
+from src.mqtt_client import device_states, topic_values
 
 TEST_PASSWORD = "test-password"
 
@@ -20,7 +20,9 @@ def client(tmp_path, monkeypatch):
     # Redirect runtime state to a temp dir so tests never touch real data/.
     monkeypatch.setattr(api.settings, "config_path", str(tmp_path / "config.json"))
     monkeypatch.setattr(api, "ICON_PATH", tmp_path / "icon.png")
+    # Clear both global caches so state never leaks across tests.
     device_states.clear()
+    topic_values.clear()
     # No `with` -> lifespan (and the MQTT listener task) is not started.
     return TestClient(api.app)
 

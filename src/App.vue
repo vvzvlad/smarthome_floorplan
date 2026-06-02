@@ -5,6 +5,7 @@ import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
 import { checkSession, logout, fetchConfig, fetchStates, fetchInfo, fetchTopicValues } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
+import { normalizeEntityState } from './utils/entityState';
 import type { FloorplanConfig } from './types/floorplan';
 
 const store = useFloorplanStore();
@@ -16,7 +17,7 @@ async function loadStates() {
     try {
         const states = await fetchStates();
         for (const [friendlyName, payload] of Object.entries(states)) {
-            const stateStr = typeof payload.state === 'string' && payload.state.toUpperCase() === 'ON' ? 'on' : 'off';
+            const stateStr = normalizeEntityState(payload);
             store.setEntityState(friendlyName, stateStr, payload);
         }
     } catch (e) {

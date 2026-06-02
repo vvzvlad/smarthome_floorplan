@@ -26,9 +26,17 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         config.value.entities.find(e => e.id === selectedEntityId.value)
     );
 
-    // Auto-save config to server with 2-second debounce
+    // Auto-save config to server with 2-second debounce.
+    // Guard against clobbering the server copy: never auto-save until a config has
+    // been successfully loaded from the server, and never persist the mutation that
+    // loadConfig() itself triggers. Without this, an empty/failed load (the server
+    // returns the empty default) gets written straight back, wiping the real config.
+    const isLoaded = ref(false);
+    let skipNextSave = false;
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     watch(config, () => {
+        if (!isLoaded.value) return;                          // no save before the first successful load
+        if (skipNextSave) { skipNextSave = false; return; }   // ignore loadConfig's own mutation
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
             saveConfig(config.value).catch(e => console.error('Auto-save failed:', e));
@@ -171,7 +179,11 @@ export const useFloorplanStore = defineStore('floorplan', () => {
     }
 
     function loadConfig(newConfig: FloorplanConfig) {
+        // Suppress the auto-save that replacing config.value would otherwise trigger,
+        // then mark the store loaded so genuine user edits from here on are persisted.
+        skipNextSave = true;
         config.value = newConfig;
+        isLoaded.value = true;
         // Reset runtime states
         entityStates.value = {};
         newConfig.entities.forEach(e => {

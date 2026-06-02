@@ -3,6 +3,9 @@ import { computed, ref } from 'vue';
 import type { EntityConfig } from '../../types/floorplan';
 import { useFloorplanStore } from '../../stores/floorplan';
 import { formatTextValue } from '../../utils/textEntity';
+import { dragDeltaPercent } from '../../utils/coords';
+import { resolveNumberValue, formatNumberDisplay } from '../../utils/numberWidget';
+import { entityStyle, labelTransform } from '../../utils/entityVisual';
 
 const props = defineProps<{
   entity: EntityConfig
@@ -36,22 +39,19 @@ function onMouseDown(event: MouseEvent) {
 function onMouseMove(event: MouseEvent) {
   if (!isDragging.value) return;
 
-  const dx = event.clientX - dragStart.value.x;
-  const dy = event.clientY - dragStart.value.y;
-
-  // Calculate percentage change
-  // We need the container dimensions. 
-  // We can get them from the store or DOM. 
-  // Let's assume the entity's parent is the .image-wrapper
+  // Calculate percentage change. We need the container dimensions; assume the
+  // entity's parent is the .image-wrapper. dragDeltaPercent now guards against
+  // zero dimensions (see coords.ts), which makes this previously-unguarded path
+  // safe from divide-by-zero.
   const container = document.querySelector('.image-wrapper');
   if (!container) return;
 
   const rect = container.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-
-  const dxPercent = (dx / width) * 100;
-  const dyPercent = (dy / height) * 100;
+  const { dxPercent, dyPercent } = dragDeltaPercent(
+    { x: event.clientX, y: event.clientY },
+    dragStart.value,
+    rect,
+  );
 
   store.updateEntity(props.entity.id, {
     x: props.entity.x + dxPercent,
@@ -92,18 +92,15 @@ function onTouchMove(event: TouchEvent) {
   const touch = event.touches[0];
   if (!touch) return;
 
-  const dx = touch.clientX - dragStart.value.x;
-  const dy = touch.clientY - dragStart.value.y;
-
   const container = document.querySelector('.image-wrapper');
   if (!container) return;
 
   const rect = container.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-
-  const dxPercent = (dx / width) * 100;
-  const dyPercent = (dy / height) * 100;
+  const { dxPercent, dyPercent } = dragDeltaPercent(
+    { x: touch.clientX, y: touch.clientY },
+    dragStart.value,
+    rect,
+  );
 
   store.updateEntity(props.entity.id, {
     x: props.entity.x + dxPercent,
@@ -137,18 +134,16 @@ function onLabelMouseDown(event: MouseEvent) {
 function onLabelMouseMove(event: MouseEvent) {
   if (!isLabelDragging.value || !labelRef.value) return;
 
-  const dx = event.clientX - labelDragStart.value.x;
-  const dy = event.clientY - labelDragStart.value.y;
-
-  // Calculate percentage change based on LABEL dimensions
+  // Calculate percentage change based on LABEL dimensions. dragDeltaPercent
+  // guards against zero dimensions (yields a 0 delta), so the explicit
+  // zero-dimension early return is no longer needed: a zero size leaves the
+  // offset unchanged just as before.
   const rect = labelRef.value.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-
-  if (width === 0 || height === 0) return;
-
-  const dxPercent = (dx / width) * 100;
-  const dyPercent = (dy / height) * 100;
+  const { dxPercent, dyPercent } = dragDeltaPercent(
+    { x: event.clientX, y: event.clientY },
+    labelDragStart.value,
+    rect,
+  );
 
   // Update labelConfig offset
   const currentConfig = props.entity.labelConfig;
@@ -187,17 +182,14 @@ function onLabelTouchMove(event: TouchEvent) {
   const touch = event.touches[0];
   if (!touch) return;
 
-  const dx = touch.clientX - labelDragStart.value.x;
-  const dy = touch.clientY - labelDragStart.value.y;
-
+  // dragDeltaPercent guards zero dimensions (yields a 0 delta), replacing the
+  // former explicit zero-dimension early return.
   const rect = labelRef.value.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-
-  if (width === 0 || height === 0) return;
-
-  const dxPercent = (dx / width) * 100;
-  const dyPercent = (dy / height) * 100;
+  const { dxPercent, dyPercent } = dragDeltaPercent(
+    { x: touch.clientX, y: touch.clientY },
+    labelDragStart.value,
+    rect,
+  );
 
   const currentConfig = props.entity.labelConfig;
   store.updateEntity(props.entity.id, {
@@ -218,53 +210,9 @@ function onLabelTouchEnd() {
 }
 
 // Style computation
-const styleObject = computed(() => {
-  const { shape, style, x, y, type } = props.entity;
+const styleObject = computed(() => entityStyle(props.entity, isSelected.value));
 
-  if (type === 'text' || type === 'number') {
-    return {
-      left: `${x}%`,
-      top: `${y}%`,
-      position: 'absolute' as const,
-      transform: 'translate(-50%, -50%)',
-      border: isSelected.value ? '2px solid var(--color-primary)' : '2px solid transparent',
-      borderRadius: '4px',
-      cursor: 'move',
-      zIndex: isSelected.value ? 10 : 1,
-      background: 'transparent',
-    };
-  }
-
-  // Safely access offColor from union type
-  let backgroundColor = '#94a3b8'; // default
-  const colors = style.colors;
-  if (colors && 'offColor' in colors) {
-    backgroundColor = colors.offColor;
-  }
-
-  return {
-    left: `${x}%`,
-    top: `${y}%`,
-    width: `${style.width}%`,
-    height: `${style.height}%`,
-    backgroundColor,
-    opacity: style.offOpacity,
-    transform: `translate(-50%, -50%) rotate(${style.rotation}deg)`,
-    position: 'absolute' as const,
-    border: isSelected.value ? '2px solid var(--color-primary)' : '2px solid transparent',
-    borderRadius: shape === 'circle' ? '50%' : '4px',
-    cursor: 'move',
-    zIndex: isSelected.value ? 10 : 1,
-  };
-});
-
-const labelStyle = computed(() => {
-  const { offsetX, offsetY, color } = props.entity.labelConfig || {};
-  return {
-    transform: `translate(-50%, -50%) translate(${offsetX || 0}%, ${offsetY || 0}%)`,
-    color: color || '#ffffff',
-  };
-});
+const labelStyle = computed(() => labelTransform(props.entity.labelConfig));
 
 const textValue = computed(() => {
   if (props.entity.type !== 'text' || !props.entity.textConfig) return '';
@@ -276,15 +224,8 @@ const numberDisplay = computed(() => {
   if (props.entity.type !== 'number' || !props.entity.numberConfig) return '';
   const cfg = props.entity.numberConfig;
   const st = store.entityStates[props.entity.entityId];
-  let val: number;
-  if (st?.numberValue !== undefined) {
-    val = st.numberValue;
-  } else {
-    const raw = store.topicValues[cfg.readTopic];
-    const n = raw !== undefined ? parseFloat(raw) : NaN;
-    val = Number.isFinite(n) ? n : cfg.min;
-  }
-  return `${val}${cfg.unit ? ' ' + cfg.unit : ''}`;
+  const val = resolveNumberValue(st?.numberValue, store.topicValues[cfg.readTopic], cfg.min);
+  return formatNumberDisplay(val, cfg.unit);
 });
 
 const numberSize = computed(() => `${props.entity.numberConfig?.size ?? 2.5}cqw`);

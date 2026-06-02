@@ -2,6 +2,7 @@
 import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
 import EntityOverlay from './EntityOverlay.vue';
+import { toImagePercent, clampZoom, pointsToSvgString, appendPoint, removePointAt } from '../../utils/coords';
 
 const store = useFloorplanStore();
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -22,11 +23,11 @@ defineExpose({
 });
 
 function zoomIn() {
-  zoomScale.value = Math.min(zoomScale.value + 0.25, 5);
+  zoomScale.value = clampZoom(zoomScale.value, 1);
 }
 
 function zoomOut() {
-  zoomScale.value = Math.max(zoomScale.value - 0.25, 0.5);
+  zoomScale.value = clampZoom(zoomScale.value, -1);
 }
 
 function onCanvasClick(event: MouseEvent) {
@@ -37,12 +38,11 @@ function onCanvasClick(event: MouseEvent) {
 
     const rect = container.getBoundingClientRect();
     // Coordinates are already handled correctly by getBoundingClientRect on scaled element
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    const { x, y } = toImagePercent(event.clientX, event.clientY, rect);
 
     const entity = store.selectedEntity;
     if (entity) {
-      const newPoints = [...(entity.points || []), { x, y }];
+      const newPoints = appendPoint(entity.points, { x, y });
       store.updateEntity(entity.id, { points: newPoints });
     }
   } else {
@@ -87,8 +87,7 @@ function onDragOver(event: DragEvent) {
 const draggingKey = ref<number | null>(null);
 
 function getPointsString(points?: { x: number, y: number }[]) {
-  if (!points) return '';
-  return points.map(p => `${p.x} ${p.y}`).join(',');
+  return pointsToSvgString(points);
 }
 
 function onPointMouseDown(index: number, event: MouseEvent) {
@@ -105,8 +104,7 @@ function onPointMouseMove(event: MouseEvent) {
   if (!container) return;
 
   const rect = container.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * 100;
-  const y = ((event.clientY - rect.top) / rect.height) * 100;
+  const { x, y } = toImagePercent(event.clientX, event.clientY, rect);
 
   // Update specific point
   const points = [...(store.selectedEntity.points || [])];
@@ -125,8 +123,7 @@ function onPointMouseUp() {
 function onPointDblClick(index: number, event: MouseEvent) {
   event.stopPropagation();
   if (!store.selectedEntity) return;
-  const points = [...(store.selectedEntity.points || [])];
-  points.splice(index, 1);
+  const points = removePointAt(store.selectedEntity.points, index);
   store.updateEntity(store.selectedEntity.id, { points });
 }
 
@@ -148,8 +145,7 @@ function onPointTouchMove(event: TouchEvent) {
   if (!touch) return;
 
   const rect = container.getBoundingClientRect();
-  const x = ((touch.clientX - rect.left) / rect.width) * 100;
-  const y = ((touch.clientY - rect.top) / rect.height) * 100;
+  const { x, y } = toImagePercent(touch.clientX, touch.clientY, rect);
 
   const points = [...(store.selectedEntity.points || [])];
   if (points[draggingKey.value]) {

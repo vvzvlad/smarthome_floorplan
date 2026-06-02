@@ -2,6 +2,14 @@
 import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
 import { formatTextValue } from '../../utils/textEntity';
+import {
+  resolveNumberValue,
+  computeNextStep,
+  isAtMin,
+  isAtMax,
+  formatNumberDisplay,
+} from '../../utils/numberWidget';
+import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 
 const props = defineProps<{
     config: FloorplanConfig,
@@ -77,13 +85,9 @@ function getEntityValues(entity: any) {
         };
     }
 
-    let color = colors.onColor;
-    let opacity = style.onOpacity;
-
-    if (state.brightness !== undefined) {
-        // Map brightness 0-255 to 0-1, multiplied by the configured max opacity
-        opacity = (state.brightness / 255) * style.onOpacity;
-    }
+    const color = colors.onColor;
+    // Map brightness 0-255 to 0-1, multiplied by the configured max opacity.
+    const opacity = brightnessToGradientOpacity(state.brightness, style.onOpacity);
 
     return { color, opacity };
 }
@@ -108,13 +112,11 @@ function getEntityVisualStyle(entity: any) {
 
     // Ensure minimum visibility for low brightness if ON
     // If Opacity is 0.8, and brightness is 1/255, we want at least say 0.1 or 0.2
+    // Map 0-255 brightness to range [0.3, style.onOpacity]; only when ON with a
+    // known brightness, otherwise keep the opacity from getEntityValues.
     let effectiveOpacity = opacity;
     if (state.state == 'on' && state.brightness !== undefined) {
-        // Map 0-255 brightness to range [0.3, style.onOpacity]
-        const minOpacity = 0.3;
-        const maxOpacity = entity.style.onOpacity;
-        const brightnessFactor = state.brightness / 255;
-        effectiveOpacity = minOpacity + (brightnessFactor * (maxOpacity - minOpacity));
+        effectiveOpacity = brightnessToShapeOpacity(state.brightness, entity.style.onOpacity);
     }
 
     return {
@@ -163,44 +165,23 @@ function getNumberValue(entity: EntityConfig): number {
   const cfg = entity.numberConfig;
   if (!cfg) return 0;
   const st = props.entityStates[entity.entityId];
-  if (st?.numberValue !== undefined) return st.numberValue; // optimistic / last user value
-  const raw = props.topicValues[cfg.readTopic];
-  const n = raw !== undefined ? parseFloat(raw) : NaN;
-  return Number.isFinite(n) ? n : cfg.min;
+  return resolveNumberValue(st?.numberValue, props.topicValues[cfg.readTopic], cfg.min);
 }
 
-function roundToStep(value: number, step: number): number {
-  // Derive decimal places from the step to avoid floating-point drift
-  // (e.g. 0.1 + 0.2). Handles both "0.25" and exponential "1e-7" forms.
-  const str = Math.abs(step).toString();
-  let decimals = 0;
-  if (str.includes('e-')) {
-    decimals = parseInt(str.split('e-')[1] ?? '', 10) || 0;
-  } else if (str.includes('.')) {
-    decimals = (str.split('.')[1] ?? '').length;
-  }
-  return Number(value.toFixed(Math.min(decimals, 100)));
-}
-
-function stepNumber(entity: EntityConfig, dir: number) {
+function stepNumber(entity: EntityConfig, dir: 1 | -1) {
+  // Thin wrapper: read the current value, delegate the clamped arithmetic to
+  // computeNextStep, and emit only when it returns a non-null new value.
   const cfg = entity.numberConfig;
   if (!cfg) return;
-  const step = Math.abs(cfg.step) || 1;           // guard against 0 / negative step
-  const lo = Math.min(cfg.min, cfg.max);
-  const hi = Math.max(cfg.min, cfg.max);
-  const current = getNumberValue(entity);
-  let next = roundToStep(current + dir * step, step);
-  if (next < lo) next = lo;
-  if (next > hi) next = hi;
-  if (next === current) return;
+  const next = computeNextStep(getNumberValue(entity), dir, cfg);
+  if (next === null) return;
   emit('entity-set-value', entity.entityId, cfg.writeTopic, next);
 }
 
 function getNumberDisplay(entity: EntityConfig): string {
     const cfg = entity.numberConfig;
     if (!cfg) return '';
-    const v = getNumberValue(entity);
-    return `${v}${cfg.unit ? ' ' + cfg.unit : ''}`;
+    return formatNumberDisplay(getNumberValue(entity), cfg.unit);
 }
 
 function getNumberPositionStyle(entity: EntityConfig) {
@@ -218,12 +199,12 @@ function getNumberPositionStyle(entity: EntityConfig) {
 function atMin(entity: EntityConfig): boolean {
   const c = entity.numberConfig;
   if (!c) return false;
-  return getNumberValue(entity) <= Math.min(c.min, c.max);
+  return isAtMin(getNumberValue(entity), c.min, c.max);
 }
 function atMax(entity: EntityConfig): boolean {
   const c = entity.numberConfig;
   if (!c) return false;
-  return getNumberValue(entity) >= Math.max(c.min, c.max);
+  return isAtMax(getNumberValue(entity), c.min, c.max);
 }
 
 </script>

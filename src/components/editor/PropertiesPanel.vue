@@ -3,6 +3,7 @@ import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng } from '../../utils/image';
+import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig } from '../../utils/entityForm';
 const store = useFloorplanStore();
 
 
@@ -119,9 +120,7 @@ const knownDevices = ref<string[]>([]);
 const showDeviceList = ref(false);
 
 const filteredDevices = computed(() => {
-    const query = (selectedEntity.value?.entityId ?? '').toLowerCase();
-    if (!query) return knownDevices.value;
-    return knownDevices.value.filter(d => d.toLowerCase().includes(query));
+    return filterDevices(knownDevices.value, selectedEntity.value?.entityId ?? '');
 });
 
 async function refreshDevices() {
@@ -144,10 +143,10 @@ function hideDeviceList() {
 function onTypeChange() {
     if (!selectedEntity.value) return;
     if (selectedEntity.value.type === 'text' && !selectedEntity.value.textConfig) {
-        store.updateEntity(selectedEntity.value.id, { textConfig: { jsonPath: 'temperature', format: '{}' } });
+        store.updateEntity(selectedEntity.value.id, { textConfig: defaultTextConfig() });
     }
     if (selectedEntity.value.type === 'number' && !selectedEntity.value.numberConfig) {
-        store.updateEntity(selectedEntity.value.id, { numberConfig: { readTopic: '', writeTopic: '', min: 0, max: 100, step: 1, unit: '', size: 2.5 } });
+        store.updateEntity(selectedEntity.value.id, { numberConfig: defaultNumberConfig() });
     }
 }
 
@@ -171,8 +170,8 @@ function setNumberField(key: 'readTopic' | 'writeTopic' | 'unit', e: Event) {
 
 function setNumberNum(key: 'min' | 'max' | 'step' | 'size', e: Event) {
     if (selectedEntity.value?.numberConfig) {
-        const n = parseFloat((e.target as HTMLInputElement).value);
-        if (!Number.isNaN(n)) (selectedEntity.value.numberConfig as any)[key] = n;
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) (selectedEntity.value.numberConfig as any)[key] = n;
     }
 }
 </script>
