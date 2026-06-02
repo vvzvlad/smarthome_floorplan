@@ -11,10 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config_store import read_config, write_config
-from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value
+from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value, topic_values, publish_raw, number_read_topics, number_write_topics
 from .settings import settings
 
 logger = logging.getLogger(__name__)
+
+_mqtt_task: "asyncio.Task | None" = None
 
 
 def verify_auth(request: Request):
@@ -25,14 +27,33 @@ def verify_auth(request: Request):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start MQTT listener in background
-    task = asyncio.create_task(mqtt_listener_loop())
+    global _mqtt_task
+    _mqtt_task = asyncio.create_task(mqtt_listener_loop())
     yield
-    task.cancel()
+    _mqtt_task.cancel()
     try:
-        await task
+        await _mqtt_task
     except asyncio.CancelledError:
         pass
+
+
+async def _restart_mqtt_listener() -> None:
+    """Cancel and respawn the MQTT listener so it resubscribes to the current config read topics.
+
+    Awaits the cancelled task so its broker connection is fully closed before the new
+    one connects — otherwise two clients with the same id briefly overlap (broker takeover).
+    """
+    global _mqtt_task
+    old = _mqtt_task
+    if old is not None and not old.done():
+        old.cancel()
+        try:
+            await old
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+    _mqtt_task = asyncio.create_task(mqtt_listener_loop())
 
 
 app = FastAPI(lifespan=lifespan)
@@ -101,7 +122,10 @@ def get_config():
 @app.post("/api/config", dependencies=[Depends(verify_auth)])
 async def post_config(request: Request):
     body = await request.json()
+    old_topics = number_read_topics(read_config())
     write_config(body)
+    if number_read_topics(body) != old_topics:
+        await _restart_mqtt_listener()
     return JSONResponse(content={"ok": True})
 
 
@@ -145,6 +169,33 @@ async def post_command(entity_id: str, request: Request):
     await publish_value(entity_id, field, value)
     # Optimistically merge into in-memory state without clobbering other fields
     device_states.setdefault(entity_id, {})[field] = value
+    return JSONResponse(content={"ok": True})
+
+
+@app.get("/api/mqtt/topics", dependencies=[Depends(verify_auth)])
+def get_mqtt_topics():
+    """Return last raw values seen on the configured MQTT read topics."""
+    return JSONResponse(content=topic_values)
+
+
+@app.post("/api/mqtt/publish", dependencies=[Depends(verify_auth)])
+async def post_mqtt_publish(request: Request):
+    """Publish a raw value (no JSON) to an MQTT topic."""
+    body = await request.json()
+    topic = body.get("topic")
+    value = body.get("value")
+    if not isinstance(topic, str) or not topic.strip():
+        raise HTTPException(status_code=400, detail="topic must be a non-empty string")
+    if not isinstance(value, str):
+        # Accept numbers too, coerce to text; reject everything else (incl. bool)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise HTTPException(status_code=400, detail="value must be a string or number")
+        value = str(value)
+    # Only allow publishing to topics that are actually configured as a number
+    # widget's write topic — don't let the endpoint publish to arbitrary topics.
+    if topic not in number_write_topics(read_config()):
+        raise HTTPException(status_code=403, detail="topic is not a configured write topic")
+    await publish_raw(topic, value)
     return JSONResponse(content={"ok": True})
 
 

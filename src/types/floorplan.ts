@@ -29,12 +29,13 @@ export interface TextConfig {
 }
 
 export interface NumberConfig {
-  jsonPath: string;     // property in device payload holding the current value, e.g. "brightness"
-  commandField: string; // MQTT property name to write on change, e.g. "brightness"
+  readTopic: string;    // MQTT topic to read the raw current value from
+  writeTopic: string;   // MQTT topic to publish the raw value to
   min: number;
   max: number;
-  step: number;         // increment / precision
-  unit: string;         // suffix shown after the value, e.g. "°C", "%", "" for none
+  step: number;
+  unit: string;
+  size: number;         // base font size in cqw; scales the whole stepper widget
 }
 
 export interface EntityConfig {

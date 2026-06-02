@@ -43,13 +43,18 @@ export async function sendCommand(entityId: string, state: 'ON' | 'OFF'): Promis
     if (!res.ok) throw new Error('Failed to send command');
 }
 
-export async function sendNumberCommand(entityId: string, field: string, value: number): Promise<void> {
-    const encodedId = encodeURIComponent(entityId);
-    const res = await apiFetch(`/api/entity/${encodedId}/command`, {
+export async function publishRaw(topic: string, value: string): Promise<void> {
+    const res = await apiFetch('/api/mqtt/publish', {
         method: 'POST',
-        body: JSON.stringify({ field, value }),
+        body: JSON.stringify({ topic, value }),
     });
-    if (!res.ok) throw new Error('Failed to send number command');
+    if (!res.ok) throw new Error('Failed to publish value');
+}
+
+export async function fetchTopicValues(): Promise<Record<string, string>> {
+    const res = await apiFetch('/api/mqtt/topics');
+    if (!res.ok) throw new Error('Failed to fetch topic values');
+    return res.json();
 }
 
 export async function login(password: string): Promise<boolean> {

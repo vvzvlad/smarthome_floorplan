@@ -147,7 +147,7 @@ function onTypeChange() {
         store.updateEntity(selectedEntity.value.id, { textConfig: { jsonPath: 'temperature', format: '{}' } });
     }
     if (selectedEntity.value.type === 'number' && !selectedEntity.value.numberConfig) {
-        store.updateEntity(selectedEntity.value.id, { numberConfig: { jsonPath: 'brightness', commandField: 'brightness', min: 0, max: 100, step: 1, unit: '' } });
+        store.updateEntity(selectedEntity.value.id, { numberConfig: { readTopic: '', writeTopic: '', min: 0, max: 100, step: 1, unit: '', size: 2.5 } });
     }
 }
 
@@ -163,13 +163,13 @@ function setTextFormat(e: Event) {
     }
 }
 
-function setNumberField(key: 'jsonPath' | 'commandField' | 'unit', e: Event) {
+function setNumberField(key: 'readTopic' | 'writeTopic' | 'unit', e: Event) {
     if (selectedEntity.value?.numberConfig) {
         (selectedEntity.value.numberConfig as any)[key] = (e.target as HTMLInputElement).value;
     }
 }
 
-function setNumberNum(key: 'min' | 'max' | 'step', e: Event) {
+function setNumberNum(key: 'min' | 'max' | 'step' | 'size', e: Event) {
     if (selectedEntity.value?.numberConfig) {
         const n = parseFloat((e.target as HTMLInputElement).value);
         if (!Number.isNaN(n)) (selectedEntity.value.numberConfig as any)[key] = n;
@@ -288,14 +288,14 @@ function setNumberNum(key: 'min' | 'max' | 'step', e: Event) {
                     <template v-else-if="selectedEntity.type === 'number'">
                         <div class="section-title">Number Range</div>
                         <div class="input-group">
-                            <label>Read JSON Path</label>
-                            <input type="text" :value="selectedEntity.numberConfig?.jsonPath ?? ''"
-                                @input="setNumberField('jsonPath', $event)" placeholder="e.g. brightness">
+                            <label>Read Topic</label>
+                            <input type="text" :value="selectedEntity.numberConfig?.readTopic ?? ''"
+                                @input="setNumberField('readTopic', $event)" placeholder="e.g. home/room/setpoint">
                         </div>
                         <div class="input-group">
-                            <label>Command Field (MQTT)</label>
-                            <input type="text" :value="selectedEntity.numberConfig?.commandField ?? ''"
-                                @input="setNumberField('commandField', $event)" placeholder="e.g. brightness">
+                            <label>Write Topic</label>
+                            <input type="text" :value="selectedEntity.numberConfig?.writeTopic ?? ''"
+                                @input="setNumberField('writeTopic', $event)" placeholder="e.g. home/room/setpoint/set">
                         </div>
                         <div class="row">
                             <div class="input-group">
@@ -317,7 +317,11 @@ function setNumberNum(key: 'min' | 'max' | 'step', e: Event) {
                                 <input type="text" :value="selectedEntity.numberConfig?.unit ?? ''" @input="setNumberField('unit', $event)" placeholder="°C, %">
                             </div>
                         </div>
-                        <p class="hint small">Buttons send <code>{commandField: value}</code> to the device.</p>
+                        <div class="input-group">
+                            <label>Size</label>
+                            <input type="number" :value="selectedEntity.numberConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setNumberNum('size', $event)">
+                        </div>
+                        <p class="hint small">Publishes the raw value (no JSON) to the write topic; reads it from the read topic.</p>
                     </template>
 
                     <!-- Light entity config -->

@@ -2,8 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import type { FloorplanConfig, EntityConfig, EntityState } from '../types/floorplan';
 import { v4 as uuidv4 } from 'uuid';
-import { saveConfig, sendCommand, sendNumberCommand } from '../utils/api';
-import { extractJsonPath } from '../utils/textEntity';
+import { saveConfig, sendCommand, publishRaw } from '../utils/api';
 
 export const useFloorplanStore = defineStore('floorplan', () => {
     // Config starts empty; loaded from server via App.vue on startup
@@ -18,6 +17,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
 
     // Runtime device states (entity_id -> state), not persisted in config
     const entityStates = ref<Record<string, EntityState>>({});
+
+    // Raw last-known values of configured MQTT read topics (topic -> raw string)
+    const topicValues = ref<Record<string, string>>({});
 
     const entities = computed(() => config.value.entities);
     const selectedEntity = computed(() =>
@@ -73,7 +75,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
                 }
             } : {}),
             ...(type === 'number' ? {
-                numberConfig: { jsonPath: 'brightness', commandField: 'brightness', min: 0, max: 100, step: 1, unit: '' }
+                numberConfig: { readTopic: '', writeTopic: '', min: 0, max: 100, step: 1, unit: '', size: 2.5 }
             } : {})
         };
         config.value.entities.push(newEntity);
@@ -129,12 +131,14 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         );
     }
 
-    async function setEntityNumberValue(entityId: string, field: string, value: number) {
+    async function setNumberValue(entityId: string, writeTopic: string, value: number) {
+        // Without a write topic there is nothing to send — don't show a fake optimistic value.
+        if (!writeTopic) return;
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
         // Optimistic local update so the stepper reflects the new value immediately
         entityStates.value[entityId] = { ...current, numberValue: value };
-        sendNumberCommand(entityId, field, value).catch(e =>
-            console.error('Failed to send number command:', e)
+        publishRaw(writeTopic, String(value)).catch(e =>
+            console.error('Failed to publish value:', e)
         );
     }
 
@@ -146,21 +150,24 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             shouldLightUp: state !== 'off' && state !== 'idle',
             ...(rawPayload !== undefined ? { rawPayload } : {}),
         };
-        // Reconcile optimistic number value: drop the local override only once the
-        // device actually reports the SAME value we sent (confirmed). Comparing for
-        // equality (not just "any finite number") avoids a visible roll-back to the
-        // old device value on the first poll after the user steps.
-        if (rawPayload !== undefined && next.numberValue !== undefined) {
-            const optimistic = next.numberValue;
-            const confirmed = config.value.entities.some(e =>
-                e.type === 'number' &&
-                e.entityId === entityId &&
-                e.numberConfig &&
-                Math.abs(Number(extractJsonPath(rawPayload, e.numberConfig.jsonPath)) - optimistic) < 1e-9
-            );
-            if (confirmed) next.numberValue = undefined;
-        }
         entityStates.value[entityId] = next;
+    }
+
+    function setTopicValues(values: Record<string, string>) {
+        topicValues.value = values;
+        // Reconcile: drop a widget's optimistic value once its read topic reports
+        // the SAME value (within epsilon), so it returns to real device state.
+        for (const e of config.value.entities) {
+            if (e.type !== 'number' || !e.numberConfig) continue;
+            const st = entityStates.value[e.entityId];
+            if (!st || st.numberValue === undefined) continue;
+            const raw = values[e.numberConfig.readTopic];
+            if (raw === undefined) continue;
+            const n = parseFloat(raw);
+            if (Number.isFinite(n) && Math.abs(n - st.numberValue) < 1e-9) {
+                entityStates.value[e.entityId] = { ...st, numberValue: undefined };
+            }
+        }
     }
 
     function loadConfig(newConfig: FloorplanConfig) {
@@ -189,14 +196,16 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         selectedEntityId,
         selectedEntity,
         entityStates,
+        topicValues,
         setBaseImage,
         addEntity,
         duplicateEntity,
         removeEntity,
         updateEntity,
         toggleEntityState,
-        setEntityNumberValue,
+        setNumberValue,
         setEntityState,
+        setTopicValues,
         loadConfig,
         clearConfig
     };

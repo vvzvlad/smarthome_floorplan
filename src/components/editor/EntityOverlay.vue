@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import type { EntityConfig } from '../../types/floorplan';
 import { useFloorplanStore } from '../../stores/floorplan';
-import { formatTextValue, extractJsonPath } from '../../utils/textEntity';
+import { formatTextValue } from '../../utils/textEntity';
 
 const props = defineProps<{
   entity: EntityConfig
@@ -280,12 +280,14 @@ const numberDisplay = computed(() => {
   if (st?.numberValue !== undefined) {
     val = st.numberValue;
   } else {
-    const raw = st?.rawPayload ? extractJsonPath(st.rawPayload, cfg.jsonPath) : undefined;
-    const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
+    const raw = store.topicValues[cfg.readTopic];
+    const n = raw !== undefined ? parseFloat(raw) : NaN;
     val = Number.isFinite(n) ? n : cfg.min;
   }
   return `${val}${cfg.unit ? ' ' + cfg.unit : ''}`;
 });
+
+const numberSize = computed(() => `${props.entity.numberConfig?.size ?? 2.5}cqw`);
 
 </script>
 
@@ -297,7 +299,8 @@ const numberDisplay = computed(() => {
       {{ textValue }}
     </div>
     <!-- Number entity: non-interactive stepper preview for placement -->
-    <div v-else-if="entity.type === 'number'" class="number-stepper" style="pointer-events:none;">
+    <div v-else-if="entity.type === 'number'" class="number-stepper"
+      :style="{ fontSize: numberSize, pointerEvents: 'none' }">
       <span class="number-btn">−</span>
       <span class="number-value">{{ numberDisplay }}</span>
       <span class="number-btn">+</span>

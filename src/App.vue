@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { checkSession, logout, fetchConfig, fetchStates, fetchInfo } from './utils/api';
+import { checkSession, logout, fetchConfig, fetchStates, fetchInfo, fetchTopicValues } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import type { FloorplanConfig } from './types/floorplan';
 
@@ -21,6 +21,12 @@ async function loadStates() {
         }
     } catch (e) {
         console.error('Failed to load states', e);
+    }
+    try {
+        const topics = await fetchTopicValues();
+        store.setTopicValues(topics);
+    } catch (e) {
+        console.error('Failed to load topic values', e);
     }
 }
 

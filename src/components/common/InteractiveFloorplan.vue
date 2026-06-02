@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
-import { formatTextValue, extractJsonPath } from '../../utils/textEntity';
+import { formatTextValue } from '../../utils/textEntity';
 
 const props = defineProps<{
     config: FloorplanConfig,
     entityStates: Record<string, EntityState>,
+    topicValues: Record<string, string>,
 }>();
 
 const emit = defineEmits<{
     (e: 'entity-click', entityId: string): void
     (e: 'entity-long-press', entityId: string): void
-    (e: 'entity-set-value', entityId: string, field: string, value: number): void
+    (e: 'entity-set-value', entityId: string, writeTopic: string, value: number): void
 }>();
 
 const hasImage = computed(() => !!props.config.imageBase64);
@@ -159,13 +160,13 @@ function getTextPositionStyle(entity: EntityConfig) {
 }
 
 function getNumberValue(entity: EntityConfig): number {
-    const cfg = entity.numberConfig;
-    if (!cfg) return 0;
-    const st = props.entityStates[entity.entityId];
-    if (st?.numberValue !== undefined) return st.numberValue; // optimistic / last user value
-    const raw = st?.rawPayload ? extractJsonPath(st.rawPayload, cfg.jsonPath) : undefined;
-    const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
-    return Number.isFinite(n) ? n : cfg.min;
+  const cfg = entity.numberConfig;
+  if (!cfg) return 0;
+  const st = props.entityStates[entity.entityId];
+  if (st?.numberValue !== undefined) return st.numberValue; // optimistic / last user value
+  const raw = props.topicValues[cfg.readTopic];
+  const n = raw !== undefined ? parseFloat(raw) : NaN;
+  return Number.isFinite(n) ? n : cfg.min;
 }
 
 function roundToStep(value: number, step: number): number {
@@ -192,7 +193,7 @@ function stepNumber(entity: EntityConfig, dir: number) {
   if (next < lo) next = lo;
   if (next > hi) next = hi;
   if (next === current) return;
-  emit('entity-set-value', entity.entityId, cfg.commandField, next);
+  emit('entity-set-value', entity.entityId, cfg.writeTopic, next);
 }
 
 function getNumberDisplay(entity: EntityConfig): string {
@@ -203,13 +204,15 @@ function getNumberDisplay(entity: EntityConfig): string {
 }
 
 function getNumberPositionStyle(entity: EntityConfig) {
-    return {
-        left: `${entity.x}%`,
-        top: `${entity.y}%`,
-        position: 'absolute' as const,
-        transform: 'translate(-50%, -50%)',
-        zIndex: 2,
-    };
+  const size = entity.numberConfig?.size ?? 2.5;
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 2,
+    fontSize: `${size}cqw`,
+  };
 }
 
 function atMin(entity: EntityConfig): boolean {
