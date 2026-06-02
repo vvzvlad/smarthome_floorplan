@@ -3,6 +3,7 @@ import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
+import { sanitizeFilenameBase, triggerDownload } from '../../utils/download';
 import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig } from '../../utils/entityForm';
 const store = useFloorplanStore();
 
@@ -67,12 +68,18 @@ function downloadBaseImage() {
     const dataUri = store.config.imageBase64;
     const filename = imageDownloadFilename(dataUri, store.config.name);
     if (!filename) return; // no image to download
-    const a = document.createElement('a');
-    a.href = dataUri;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    triggerDownload(dataUri, filename);
+}
+
+function downloadConfig() {
+    // Serialize the current floorplan config to a pretty-printed JSON file.
+    const json = JSON.stringify(store.config, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, `${sanitizeFilenameBase(store.config.name)}.json`);
+    // Revoke on the next tick so the browser has taken the blob first; revoking
+    // synchronously right after click() can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 const iconInput = ref<HTMLInputElement | null>(null);
@@ -277,6 +284,7 @@ function setToggleNum(key: 'size', e: Event) {
                     </div>
 
                     <div class="io-actions">
+                        <button class="secondary" @click="downloadConfig">Download Config</button>
                         <button class="secondary" @click="clearAll" style="color: var(--color-danger)">Clear All</button>
                     </div>
                 </div>

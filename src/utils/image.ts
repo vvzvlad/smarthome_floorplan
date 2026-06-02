@@ -1,3 +1,5 @@
+import { sanitizeFilenameBase } from './download';
+
 const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -19,11 +21,7 @@ export function imageDownloadFilename(dataUri: string, baseName: string): string
     const match = /^data:([^;,]*)[;,]/.exec(dataUri);
     const mime = (match?.[1] ?? '').trim().toLowerCase();
     const ext = IMAGE_MIME_EXTENSIONS[mime] ?? 'png';
-    const safe = (baseName || 'floorplan')
-        .trim()
-        .replace(/[^\p{L}\p{N}\-_]+/gu, '_')
-        .replace(/^_+|_+$/g, '');
-    return `${safe || 'floorplan'}.${ext}`;
+    return `${sanitizeFilenameBase(baseName)}.${ext}`;
 }
 
 /**

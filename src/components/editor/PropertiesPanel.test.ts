@@ -77,6 +77,28 @@ function mountPanel(entity: EntityConfig) {
     return { wrapper, store: useFloorplanStore() }
 }
 
+// Mount with nothing selected (selectedEntityId: null), so the global-config
+// section (Floorplan Image + Download Config) renders. Actions are stubbed (spied).
+function mountNoSelection(config: FloorplanConfig) {
+    const wrapper = mount(PropertiesPanel, {
+        props: { isDrawing: false },
+        global: {
+            plugins: [
+                createTestingPinia({
+                    createSpy: vi.fn,
+                    initialState: {
+                        floorplan: {
+                            config,
+                            selectedEntityId: null,
+                        },
+                    },
+                }),
+            ],
+        },
+    })
+    return { wrapper, store: useFloorplanStore() }
+}
+
 describe('PropertiesPanel — onTypeChange', () => {
     beforeEach(() => vi.clearAllMocks())
 
@@ -156,28 +178,6 @@ describe('PropertiesPanel — download background image', () => {
     // Scoped to this describe; vi.mock('../../utils/image', ...) is not affected.
     afterEach(() => vi.restoreAllMocks())
 
-    // The "Floorplan Image" section (with the Download button) only renders when
-    // nothing is selected, so mount with selectedEntityId: null and a custom config.
-    function mountNoSelection(config: FloorplanConfig) {
-        const wrapper = mount(PropertiesPanel, {
-            props: { isDrawing: false },
-            global: {
-                plugins: [
-                    createTestingPinia({
-                        createSpy: vi.fn,
-                        initialState: {
-                            floorplan: {
-                                config,
-                                selectedEntityId: null,
-                            },
-                        },
-                    }),
-                ],
-            },
-        })
-        return { wrapper, store: useFloorplanStore() }
-    }
-
     it('disables the Download Image button when there is no base image', async () => {
         const { wrapper } = mountNoSelection(makeConfig(lightEntity()))
         await flushPromises()
@@ -217,5 +217,42 @@ describe('PropertiesPanel — download background image', () => {
         await btn!.trigger('click')
 
         expect(clickSpy).not.toHaveBeenCalled()
+    })
+})
+
+describe('PropertiesPanel — download config', () => {
+    beforeEach(() => vi.clearAllMocks())
+    // Restore any vi.spyOn-created spies (blob-URL APIs, anchor click) so they
+    // don't leak across tests. Scoped to this describe; vi.mock(...) is unaffected.
+    afterEach(() => vi.restoreAllMocks())
+
+    it('serializes store.config to a pretty-printed JSON blob and triggers a download', async () => {
+        // jsdom lacks the blob-URL APIs; stub them so downloadConfig() can run.
+        const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock')
+        const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+        const cfg = makeConfig(lightEntity())
+        const { wrapper } = mountNoSelection(cfg)
+        await flushPromises()
+
+        const btn = wrapper.findAll('button').find((b) => b.text() === 'Download Config')
+        expect(btn).toBeTruthy()
+        await btn!.trigger('click')
+
+        expect(clickSpy).toHaveBeenCalledTimes(1)
+
+        // The Blob handed to createObjectURL must contain the pretty-printed config.
+        const blob = createSpy.mock.calls[0]?.[0] as Blob
+        expect(blob).toBeInstanceOf(Blob)
+        expect(blob.type).toBe('application/json')
+        const text = await blob.text()
+        expect(JSON.parse(text)).toEqual(cfg)
+        expect(text).toContain('\n  ') // 2-space pretty print
+
+        // Fix: the object URL is revoked on the next tick (setTimeout(…, 0)), not
+        // synchronously, so wait one macrotask before asserting it.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(revokeSpy).toHaveBeenCalledTimes(1)
     })
 })
