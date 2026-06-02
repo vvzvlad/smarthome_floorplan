@@ -1,0 +1,146 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { createTestingPinia } from '@pinia/testing'
+
+// PropertiesPanel imports api + image helpers; mock both so onMounted's
+// getIconStatus() and any file work resolve without touching the network/Canvas.
+vi.mock('../../utils/api', () => ({
+    fetchDevices: vi.fn().mockResolvedValue([]),
+    getIconStatus: vi.fn().mockResolvedValue({ custom: false }),
+    uploadIcon: vi.fn().mockResolvedValue(undefined),
+    deleteIcon: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('../../utils/image', () => ({
+    resizeImageToPng: vi.fn().mockResolvedValue(new Blob()),
+}))
+
+// `__APP_VERSION__` is injected by vite's `define` at build time but is absent in
+// the Vitest runtime. The component reads it at setup; provide it as a global so
+// mounting doesn't throw ReferenceError. (Test-only; no config/component change.)
+vi.stubGlobal('__APP_VERSION__', 'test')
+
+import PropertiesPanel from './PropertiesPanel.vue'
+import { useFloorplanStore } from '../../stores/floorplan'
+import { defaultTextConfig, defaultNumberConfig } from '../../utils/entityForm'
+import type { EntityConfig, FloorplanConfig } from '../../types/floorplan'
+
+function lightEntity(overrides: Partial<EntityConfig> = {}): EntityConfig {
+    return {
+        id: 'e1',
+        entityId: 'light.kitchen',
+        label: 'Kitchen',
+        type: 'light',
+        x: 50,
+        y: 50,
+        points: [],
+        shape: 'circle',
+        style: {
+            width: 5,
+            height: 5,
+            colors: { onColor: '#facc15', offColor: '#94a3b8' },
+            onOpacity: 0.8,
+            offOpacity: 0.3,
+            gradientRadius: 30,
+            rotation: 0,
+        },
+        labelConfig: { show: true, offsetX: 0, offsetY: 10, color: '#ffffff' },
+        ...overrides,
+    }
+}
+
+function makeConfig(entity: EntityConfig): FloorplanConfig {
+    return { id: 'c1', name: 'Test', imageBase64: '', entities: [entity] }
+}
+
+// Mount with a testing pinia where `entity` is the selected entity. Actions are
+// stubbed (spied) by default; getters still compute from the seeded state.
+function mountPanel(entity: EntityConfig) {
+    const wrapper = mount(PropertiesPanel, {
+        props: { isDrawing: false },
+        global: {
+            plugins: [
+                createTestingPinia({
+                    createSpy: vi.fn,
+                    initialState: {
+                        floorplan: {
+                            config: makeConfig(entity),
+                            selectedEntityId: entity.id,
+                        },
+                    },
+                }),
+            ],
+        },
+    })
+    return { wrapper, store: useFloorplanStore() }
+}
+
+describe('PropertiesPanel — onTypeChange', () => {
+    beforeEach(() => vi.clearAllMocks())
+
+    it('seeds a default textConfig when switching to "text" and none exists', async () => {
+        const { wrapper, store } = mountPanel(lightEntity())
+        await flushPromises()
+
+        // Selected entity is light; flip its type to text, then fire @change.
+        store.selectedEntity!.type = 'text'
+        await wrapper.find('select').setValue('text')
+
+        expect(store.updateEntity).toHaveBeenCalledWith('e1', { textConfig: defaultTextConfig() })
+    })
+
+    it('seeds a default numberConfig when switching to "number" and none exists', async () => {
+        const { wrapper, store } = mountPanel(lightEntity())
+        await flushPromises()
+
+        store.selectedEntity!.type = 'number'
+        await wrapper.find('select').setValue('number')
+
+        expect(store.updateEntity).toHaveBeenCalledWith('e1', { numberConfig: defaultNumberConfig() })
+    })
+
+    it('does NOT overwrite an existing textConfig when switching to "text"', async () => {
+        // Entity already carries a custom textConfig — onTypeChange must leave it intact.
+        const entity = lightEntity({ textConfig: { jsonPath: 'humidity', format: 'H: {}' } })
+        const { wrapper, store } = mountPanel(entity)
+        await flushPromises()
+
+        store.selectedEntity!.type = 'text'
+        await wrapper.find('select').setValue('text')
+
+        // No updateEntity call carrying a textConfig (the guard short-circuits).
+        const calls = (store.updateEntity as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        const seededText = calls.some((c) => c[1] && 'textConfig' in (c[1] as object))
+        expect(seededText).toBe(false)
+    })
+
+    it('does NOT overwrite an existing numberConfig when switching to "number"', async () => {
+        const entity = lightEntity({
+            numberConfig: { readTopic: 'r', writeTopic: 'w', min: 5, max: 9, step: 0.5, unit: 'x', size: 3 },
+        })
+        const { wrapper, store } = mountPanel(entity)
+        await flushPromises()
+
+        store.selectedEntity!.type = 'number'
+        await wrapper.find('select').setValue('number')
+
+        const calls = (store.updateEntity as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        const seededNumber = calls.some((c) => c[1] && 'numberConfig' in (c[1] as object))
+        expect(seededNumber).toBe(false)
+    })
+})
+
+describe('PropertiesPanel — draw mode', () => {
+    beforeEach(() => vi.clearAllMocks())
+
+    it('emits toggle-draw-mode when the Draw button is clicked', async () => {
+        const { wrapper } = mountPanel(lightEntity())
+        await flushPromises()
+
+        // The Draw button lives in the light-entity "Light Zone" section.
+        const drawButton = wrapper.findAll('button').find((b) => b.text() === 'Draw')
+        expect(drawButton).toBeTruthy()
+        await drawButton!.trigger('click')
+
+        expect(wrapper.emitted('toggle-draw-mode')).toHaveLength(1)
+    })
+})

@@ -46,3 +46,8 @@ coverage/
 data/*
 !data/.gitkeep
 server/data/
+
+# Playwright E2E artifacts
+test-results/
+playwright-report/
+.playwright/
