@@ -125,7 +125,7 @@ describe('PropertiesPanel — onTypeChange', () => {
 
     it('does NOT overwrite an existing textConfig when switching to "text"', async () => {
         // Entity already carries a custom textConfig — onTypeChange must leave it intact.
-        const entity = lightEntity({ textConfig: { jsonPath: 'humidity', format: 'H: {}' } })
+        const entity = lightEntity({ textConfig: { jsonPath: 'humidity', format: 'H: {}', size: 1.8 } })
         const { wrapper, store } = mountPanel(entity)
         await flushPromises()
 

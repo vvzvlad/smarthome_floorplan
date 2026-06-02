@@ -193,7 +193,7 @@ input:focus {
   padding: 3px 8px;
   border-radius: 4px;
   white-space: nowrap;
-  font-size: 1.8cqw;
+  font-size: 1.8cqw; /* fallback only; overridden inline (in cqw) per entity via textConfig.size */
   font-family: monospace;
   line-height: 1.4;
   pointer-events: none;

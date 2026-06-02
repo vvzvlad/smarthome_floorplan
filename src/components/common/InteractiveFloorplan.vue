@@ -151,12 +151,14 @@ function getTextValue(entity: EntityConfig): string {
 }
 
 function getTextPositionStyle(entity: EntityConfig) {
+    const size = entity.textConfig?.size ?? 1.8;
     return {
         left: `${entity.x}%`,
         top: `${entity.y}%`,
         position: 'absolute' as const,
         transform: 'translate(-50%, -50%)',
         zIndex: 1,
+        fontSize: `${size}cqw`,
     };
 }
 

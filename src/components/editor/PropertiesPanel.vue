@@ -221,6 +221,13 @@ function setTextFormat(e: Event) {
     }
 }
 
+function setTextNum(key: 'size', e: Event) {
+    if (selectedEntity.value?.textConfig) {
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) (selectedEntity.value.textConfig as any)[key] = n;
+    }
+}
+
 function setNumberField(key: 'readTopic' | 'writeTopic' | 'unit', e: Event) {
     if (selectedEntity.value?.numberConfig) {
         (selectedEntity.value.numberConfig as any)[key] = (e.target as HTMLInputElement).value;
@@ -372,6 +379,10 @@ function setToggleNum(key: 'size', e: Event) {
                                 :value="selectedEntity.textConfig?.format ?? ''"
                                 @input="setTextFormat"
                                 placeholder="e.g. Temp: {} °C">
+                        </div>
+                        <div class="input-group">
+                            <label>Size</label>
+                            <input type="number" :value="selectedEntity.textConfig?.size ?? 1.8" step="0.1" min="0.5" @input="setTextNum('size', $event)">
                         </div>
                         <p class="hint small">Use <code>{}</code> as placeholder for the value.</p>
                     </template>

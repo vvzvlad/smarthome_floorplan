@@ -221,6 +221,7 @@ const textValue = computed(() => {
   const { jsonPath, format } = props.entity.textConfig;
   return formatTextValue(format, store.entityStates[props.entity.entityId]?.rawPayload, jsonPath);
 });
+const textSize = computed(() => `${props.entity.textConfig?.size ?? 1.8}cqw`);
 
 const numberDisplay = computed(() => {
   if (props.entity.type !== 'number' || !props.entity.numberConfig) return '';
@@ -252,7 +253,7 @@ const toggleSize = computed(() => `${props.entity.toggleConfig?.size ?? 2.5}cqw`
   <div ref="overlayRef" class="entity-overlay" :style="styleObject" @mousedown="onMouseDown" @touchstart="onTouchStart"
     @click.stop>
     <!-- Text entity: show formatted value as a pill -->
-    <div v-if="entity.type === 'text'" class="text-entity" style="pointer-events: none; cursor: default;">
+    <div v-if="entity.type === 'text'" class="text-entity" :style="{ fontSize: textSize, pointerEvents: 'none', cursor: 'default' }">
       {{ textValue }}
     </div>
     <!-- Number entity: non-interactive stepper preview for placement -->

@@ -26,6 +26,7 @@ export interface LabelConfig {
 export interface TextConfig {
   jsonPath: string;   // e.g. "temperature" or "sensors.co2"
   format: string;     // e.g. "Temp: {} °C"
+  size: number;         // base font size in cqw; scales the text pill
 }
 
 export interface NumberConfig {
