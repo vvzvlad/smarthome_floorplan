@@ -255,8 +255,10 @@ function setToggleNum(key: 'size', e: Event) {
 
                     <div class="input-group">
                         <label>Floorplan Image</label>
-                        <button class="secondary small" @click="triggerReplaceImage">Replace Image</button>
-                        <button class="secondary small" @click="downloadBaseImage" :disabled="!hasBaseImage">Download Image</button>
+                        <div class="image-buttons">
+                            <button class="secondary small" @click="triggerReplaceImage">Replace Image</button>
+                            <button class="secondary small" @click="downloadBaseImage" :disabled="!hasBaseImage">Download Image</button>
+                        </div>
                         <input ref="replaceImageInput" type="file" accept="image/*" class="hidden-input"
                             @change="onReplaceImageFile">
                     </div>
@@ -696,6 +698,12 @@ function setToggleNum(key: 'size', e: Event) {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+}
+
+.image-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 button.active {
