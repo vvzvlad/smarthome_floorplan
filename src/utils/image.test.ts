@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
-import { computeCoverFit } from './image'
+import { computeCoverFit, imageDownloadFilename } from './image'
 
 // Only computeCoverFit is exercised here. The canvas-based resizeImageToPng is
 // intentionally out of scope (Canvas is non-deterministic / unavailable in jsdom).
@@ -81,5 +81,47 @@ describe('computeCoverFit', () => {
                 },
             ),
         )
+    })
+})
+
+describe('imageDownloadFilename', () => {
+    it('returns null for an empty string (nothing to download)', () => {
+        expect(imageDownloadFilename('', 'Test')).toBeNull()
+    })
+
+    it('returns null for a non-Data-URI string', () => {
+        expect(imageDownloadFilename('not-a-data-uri', 'Test')).toBeNull()
+    })
+
+    it('infers .jpg from an image/jpeg Data URI', () => {
+        expect(imageDownloadFilename('data:image/jpeg;base64,xxx', 'Test')).toBe('Test.jpg')
+    })
+
+    it('infers .png from an image/png Data URI', () => {
+        expect(imageDownloadFilename('data:image/png;base64,xxx', 'Test')).toBe('Test.png')
+    })
+
+    it('falls back to .png for an unknown MIME type', () => {
+        expect(imageDownloadFilename('data:image/tiff;base64,xxx', 'Test')).toBe('Test.png')
+    })
+
+    it('falls back to .png when the Data URI carries no MIME type', () => {
+        expect(imageDownloadFilename('data:;base64,xxx', 'Test')).toBe('Test.png')
+    })
+
+    it('sanitizes spaces and special chars in the base name', () => {
+        expect(imageDownloadFilename('data:image/png;base64,xxx', 'New Floorplan')).toBe('New_Floorplan.png')
+    })
+
+    it('preserves Unicode (Cyrillic) letters in the base name', () => {
+        expect(imageDownloadFilename('data:image/png;base64,AAA', 'Мой план')).toBe('Мой_план.png')
+    })
+
+    it('falls back to "floorplan" when the base name sanitizes to empty', () => {
+        expect(imageDownloadFilename('data:image/png;base64,xxx', '!!!')).toBe('floorplan.png')
+    })
+
+    it('falls back to "floorplan" when the base name is empty', () => {
+        expect(imageDownloadFilename('data:image/png;base64,xxx', '')).toBe('floorplan.png')
     })
 })

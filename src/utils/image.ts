@@ -1,3 +1,31 @@
+const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'image/svg+xml': 'svg',
+    'image/bmp': 'bmp',
+    'image/avif': 'avif',
+};
+
+/**
+ * Derive a download filename for a base64 / Data-URI image. Infers the file
+ * extension from the URI's MIME type (falling back to 'png') and sanitizes the
+ * given base name. Returns null when the input is not a Data URI (nothing to
+ * download).
+ */
+export function imageDownloadFilename(dataUri: string, baseName: string): string | null {
+    if (!dataUri || !dataUri.startsWith('data:')) return null;
+    const match = /^data:([^;,]*)[;,]/.exec(dataUri);
+    const mime = (match?.[1] ?? '').trim().toLowerCase();
+    const ext = IMAGE_MIME_EXTENSIONS[mime] ?? 'png';
+    const safe = (baseName || 'floorplan')
+        .trim()
+        .replace(/[^\p{L}\p{N}\-_]+/gu, '_')
+        .replace(/^_+|_+$/g, '');
+    return `${safe || 'floorplan'}.${ext}`;
+}
+
 /**
  * Compute the center-crop "cover" fit of an image into a square target of side
  * `size`. Scales so the shorter side fills the square and the overflow is

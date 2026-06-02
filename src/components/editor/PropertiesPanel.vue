@@ -2,7 +2,7 @@
 import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
-import { resizeImageToPng } from '../../utils/image';
+import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
 import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig } from '../../utils/entityForm';
 const store = useFloorplanStore();
 
@@ -59,6 +59,20 @@ function onReplaceImageFile(event: Event) {
         };
         reader.readAsDataURL(target.files[0]);
     }
+}
+
+const hasBaseImage = computed(() => !!store.config.imageBase64);
+
+function downloadBaseImage() {
+    const dataUri = store.config.imageBase64;
+    const filename = imageDownloadFilename(dataUri, store.config.name);
+    if (!filename) return; // no image to download
+    const a = document.createElement('a');
+    a.href = dataUri;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 }
 
 const iconInput = ref<HTMLInputElement | null>(null);
@@ -242,6 +256,7 @@ function setToggleNum(key: 'size', e: Event) {
                     <div class="input-group">
                         <label>Floorplan Image</label>
                         <button class="secondary small" @click="triggerReplaceImage">Replace Image</button>
+                        <button class="secondary small" @click="downloadBaseImage" :disabled="!hasBaseImage">Download Image</button>
                         <input ref="replaceImageInput" type="file" accept="image/*" class="hidden-input"
                             @change="onReplaceImageFile">
                     </div>

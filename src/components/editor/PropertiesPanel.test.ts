@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 
@@ -12,6 +12,7 @@ vi.mock('../../utils/api', () => ({
 }))
 vi.mock('../../utils/image', () => ({
     resizeImageToPng: vi.fn().mockResolvedValue(new Blob()),
+    imageDownloadFilename: vi.fn().mockReturnValue('Test.png'),
 }))
 
 // `__APP_VERSION__` is injected by vite's `define` at build time but is absent in
@@ -22,6 +23,8 @@ vi.stubGlobal('__APP_VERSION__', 'test')
 import PropertiesPanel from './PropertiesPanel.vue'
 import { useFloorplanStore } from '../../stores/floorplan'
 import { defaultTextConfig, defaultNumberConfig } from '../../utils/entityForm'
+// Import the mocked helper so individual tests can override its return value.
+import { imageDownloadFilename } from '../../utils/image'
 import type { EntityConfig, FloorplanConfig } from '../../types/floorplan'
 
 function lightEntity(overrides: Partial<EntityConfig> = {}): EntityConfig {
@@ -142,5 +145,77 @@ describe('PropertiesPanel — draw mode', () => {
         await drawButton!.trigger('click')
 
         expect(wrapper.emitted('toggle-draw-mode')).toHaveLength(1)
+    })
+})
+
+describe('PropertiesPanel — download background image', () => {
+    beforeEach(() => vi.clearAllMocks())
+
+    // Unconditionally restore any vi.spyOn-created spies (e.g. the anchor click
+    // spy) so a thrown assertion can't leak a spy onto HTMLAnchorElement.prototype.
+    // Scoped to this describe; vi.mock('../../utils/image', ...) is not affected.
+    afterEach(() => vi.restoreAllMocks())
+
+    // The "Floorplan Image" section (with the Download button) only renders when
+    // nothing is selected, so mount with selectedEntityId: null and a custom config.
+    function mountNoSelection(config: FloorplanConfig) {
+        const wrapper = mount(PropertiesPanel, {
+            props: { isDrawing: false },
+            global: {
+                plugins: [
+                    createTestingPinia({
+                        createSpy: vi.fn,
+                        initialState: {
+                            floorplan: {
+                                config,
+                                selectedEntityId: null,
+                            },
+                        },
+                    }),
+                ],
+            },
+        })
+        return { wrapper, store: useFloorplanStore() }
+    }
+
+    it('disables the Download Image button when there is no base image', async () => {
+        const { wrapper } = mountNoSelection(makeConfig(lightEntity()))
+        await flushPromises()
+
+        const btn = wrapper.findAll('button').find((b) => b.text() === 'Download Image')
+        expect(btn).toBeTruthy()
+        expect(btn!.attributes('disabled')).toBeDefined()
+    })
+
+    it('enables the button and triggers a download click when an image exists', async () => {
+        // Spy on the anchor click so jsdom doesn't attempt navigation.
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+        const cfg = { ...makeConfig(lightEntity()), imageBase64: 'data:image/png;base64,AAA' }
+        const { wrapper } = mountNoSelection(cfg)
+        await flushPromises()
+
+        const btn = wrapper.findAll('button').find((b) => b.text() === 'Download Image')
+        expect(btn).toBeTruthy()
+        expect(btn!.attributes('disabled')).toBeUndefined()
+        await btn!.trigger('click')
+
+        expect(clickSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not trigger a download when there is no filename', async () => {
+        // imageDownloadFilename returns null for this call, so downloadBaseImage()
+        // hits its early-return guard before creating/clicking the anchor.
+        vi.mocked(imageDownloadFilename).mockReturnValueOnce(null)
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+        // Non-empty image keeps the button enabled so the click reaches the guard.
+        const cfg = { ...makeConfig(lightEntity()), imageBase64: 'data:image/png;base64,AAA' }
+        const { wrapper } = mountNoSelection(cfg)
+        await flushPromises()
+
+        const btn = wrapper.findAll('button').find((b) => b.text() === 'Download Image')
+        expect(btn).toBeTruthy()
+        await btn!.trigger('click')
+
+        expect(clickSpy).not.toHaveBeenCalled()
     })
 })
