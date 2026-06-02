@@ -33,6 +33,8 @@ env/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.coverage
+coverage/
 
 # Secrets / local env
 .env
