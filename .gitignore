@@ -24,3 +24,23 @@ dist-ssr
 *.sw?
 
 __pycache__
+
+# Python
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets / local env
+.env
+
+# Claude / local agent worktrees
+.claude/
+
+# Runtime state (mounted as a docker volume)
+data/*
+!data/.gitkeep
+server/data/

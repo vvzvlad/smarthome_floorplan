@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-import os
-import sys
+import logging
+
 import uvicorn
 
+from src.settings import settings
 
-def main():
-    if not os.getenv("AUTH_PASSWORD"):
-        print("ERROR: AUTH_PASSWORD environment variable is required", file=sys.stderr)
-        sys.exit(1)
 
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("src.api:app", host="0.0.0.0", port=port, reload=False)
+def main() -> None:
+    # Importing settings above already fails fast (pydantic ValidationError) when a
+    # required variable such as AUTH_PASSWORD or MQTT_HOST is missing.
+    logging.basicConfig(
+        level=settings.log_level.upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    uvicorn.run("src.api:app", host="0.0.0.0", port=settings.port, reload=False)
 
 
 if __name__ == "__main__":

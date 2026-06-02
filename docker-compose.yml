@@ -1,0 +1,43 @@
+volumes:
+  smarthome_floorplan:
+
+networks:
+  docker_main_net:
+    external: true
+
+services:
+  smarthome_floorplan:
+    image: ghcr.io/vvzvlad/smarthome_floorplan:latest
+    container_name: smarthome-floorplan
+    restart: always
+    volumes:
+      - smarthome_floorplan:/app/data
+    environment:
+      AUTH_PASSWORD: XXX
+      MQTT_HOST: XXX
+      # MQTT_PORT: 1883
+      # MQTT_USERNAME: XXX
+      # MQTT_PASSWORD: XXX
+      # APP_TITLE: Z2M Floorplan
+      TZ: Europe/Moscow
+    networks:
+      - docker_main_net
+    logging:
+      driver: "json-file"
+      options:
+        max-file: 5
+        max-size: 10m
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.floorplan.rule: Host(`floorplan.example.com`)
+      traefik.http.services.floorplan.loadBalancer.server.port: 8000
+      traefik.http.routers.floorplan.entrypoints: websecure
+      traefik.http.routers.floorplan.tls: true
+      traefik.http.routers.floorplan.tls.certresolver: letsEncrypt
+      com.centurylinklabs.watchtower.enable: "true"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/info').read()"]
+      interval: 30m
+      timeout: 5s
+      retries: 2
+      start_period: 30s

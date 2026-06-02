@@ -12,11 +12,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config_store import read_config, write_config
 from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value
+from .settings import settings
 
 logger = logging.getLogger(__name__)
-
-# AUTH_PASSWORD must be set; main.py exits early if it is missing
-AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "")
 
 
 def verify_auth(request: Request):
@@ -39,30 +37,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Session cookie config. Secret defaults to AUTH_PASSWORD so no extra env is required
-# (changing the password invalidates existing sessions, which is acceptable).
-SECRET_KEY = os.getenv("SECRET_KEY") or AUTH_PASSWORD
-SESSION_MAX_AGE = int(os.getenv("SESSION_MAX_AGE", str(60 * 60 * 24 * 365)))  # 1 year
-# Secure flag requires HTTPS. PWA/service-worker already require HTTPS, so default True.
-# For local HTTP dev set COOKIE_SECURE=false.
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
-
+# Session cookie config. Secret defaults to AUTH_PASSWORD (settings.effective_secret_key)
+# so no extra env is required (changing the password invalidates existing sessions,
+# which is acceptable). The Secure flag requires HTTPS; PWA/service-worker already
+# require HTTPS, so settings.cookie_secure defaults to True. For local HTTP dev set
+# COOKIE_SECURE=false.
 app.add_middleware(
     SessionMiddleware,
-    secret_key=SECRET_KEY,
+    secret_key=settings.effective_secret_key,
     session_cookie="fp_session",
-    max_age=SESSION_MAX_AGE,
+    max_age=settings.session_max_age,
     same_site="lax",
-    https_only=COOKIE_SECURE,
+    https_only=settings.cookie_secure,
 )
-
-APP_TITLE = os.getenv("APP_TITLE", "Z2M Floorplan")
 
 
 @app.get("/api/info")
 def get_info():
     """Return public app metadata. No auth required."""
-    return JSONResponse(content={"title": APP_TITLE})
+    return JSONResponse(content={"title": settings.app_title})
 
 
 @app.post("/api/login")
@@ -77,7 +70,7 @@ async def login(request: Request):
     password = body.get("password", "") if isinstance(body, dict) else ""
     if not isinstance(password, str):
         password = ""
-    if not secrets.compare_digest(password.encode(), AUTH_PASSWORD.encode()):
+    if not secrets.compare_digest(password.encode(), settings.auth_password.encode()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong password")
     request.session["auth"] = True
     return JSONResponse(content={"ok": True})
@@ -159,7 +152,7 @@ _static_path = os.path.join(os.path.dirname(__file__), "..", "static")
 
 # --- App icon (home-screen / PWA) ---
 # Custom icon is stored on the /data volume; falls back to the bundled default.
-ICON_PATH = Path(os.getenv("ICON_PATH", "/data/icon.png"))
+ICON_PATH = Path(settings.icon_path)
 _DEFAULT_ICON = Path(_static_path) / "apple-touch-icon-default.png"
 MAX_ICON_BYTES = 2 * 1024 * 1024  # 2 MB upload limit
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"

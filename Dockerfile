@@ -1,7 +1,6 @@
 # Stage 1: build frontend
 FROM node:22-alpine AS frontend-build
 WORKDIR /app
-RUN apk add --no-cache git
 COPY package*.json ./
 RUN npm ci
 COPY . .
@@ -14,12 +13,12 @@ WORKDIR /app
 COPY server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN mkdir -p data
+
 COPY server/main.py .
 COPY server/src/ ./src/
 
 # Copy built frontend into static/ so FastAPI can serve it
 COPY --from=frontend-build /app/dist ./static/
-
-VOLUME ["/data"]
 
 CMD ["python", "main.py"]

@@ -4,7 +4,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 import { execSync } from 'child_process';
 
-const commitHash = execSync('git describe --tags --always').toString().trim();
+// Stamp the build with the git version. `.git` is absent in the Docker build
+// context, so fall back to the APP_VERSION env var or 'dev' instead of crashing.
+let commitHash = 'dev';
+try {
+  commitHash = execSync('git describe --tags --always').toString().trim();
+} catch {
+  commitHash = process.env.APP_VERSION ?? 'dev';
+}
 
 // https://vite.dev/config/
 export default defineConfig({
