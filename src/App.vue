@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { getAuthHeader, fetchConfig, fetchStates, fetchInfo } from './utils/api';
+import { checkSession, logout, fetchConfig, fetchStates, fetchInfo } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import type { FloorplanConfig } from './types/floorplan';
 
@@ -49,17 +49,20 @@ async function onLoginSuccess() {
     await initApp();
 }
 
+async function onLogout() {
+    await logout();
+    window.location.reload();
+}
+
 onMounted(async () => {
     fetchInfo().then(info => { appTitle.value = info.title; }).catch(() => {});
-    // If credentials are already stored, try to use them immediately
-    if (getAuthHeader()) {
-        try {
-            await fetchConfig();
-            isAuthenticated.value = true;
-            await initApp();
-        } catch {
-            isAuthenticated.value = false;
-        }
+    // Probe the session via /api/session (never 401s) so we avoid the reload loop:
+    // the HttpOnly cookie cannot be read by JS, so we ask the server instead.
+    if (await checkSession()) {
+        isAuthenticated.value = true;
+        await initApp();
+    } else {
+        isAuthenticated.value = false;
     }
 });
 
@@ -76,6 +79,7 @@ onUnmounted(() => {
       <nav>
         <RouterLink to="/" active-class="active">Viewer</RouterLink>
         <RouterLink to="/editor" active-class="active">Editor</RouterLink>
+        <a href="#" class="logout-link" @click.prevent="onLogout">Logout</a>
       </nav>
     </header>
 

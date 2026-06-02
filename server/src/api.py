@@ -7,8 +7,8 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from .config_store import read_config, write_config
 from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value
@@ -17,25 +17,12 @@ logger = logging.getLogger(__name__)
 
 # AUTH_PASSWORD must be set; main.py exits early if it is missing
 AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "")
-AUTH_USERNAME = "admin"
-
-security = HTTPBasic()
 
 
-def verify_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    """Validate Basic Auth credentials. Raises 401 on mismatch."""
-    username_ok = secrets.compare_digest(
-        credentials.username.encode(), AUTH_USERNAME.encode()
-    )
-    password_ok = secrets.compare_digest(
-        credentials.password.encode(), AUTH_PASSWORD.encode()
-    )
-    if not (username_ok and password_ok):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+def verify_auth(request: Request):
+    """Require an authenticated session cookie. Raises 401 otherwise."""
+    if not request.session.get("auth"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
 
 @asynccontextmanager
@@ -52,6 +39,23 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Session cookie config. Secret defaults to AUTH_PASSWORD so no extra env is required
+# (changing the password invalidates existing sessions, which is acceptable).
+SECRET_KEY = os.getenv("SECRET_KEY") or AUTH_PASSWORD
+SESSION_MAX_AGE = int(os.getenv("SESSION_MAX_AGE", str(60 * 60 * 24 * 365)))  # 1 year
+# Secure flag requires HTTPS. PWA/service-worker already require HTTPS, so default True.
+# For local HTTP dev set COOKIE_SECURE=false.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    session_cookie="fp_session",
+    max_age=SESSION_MAX_AGE,
+    same_site="lax",
+    https_only=COOKIE_SECURE,
+)
+
 APP_TITLE = os.getenv("APP_TITLE", "Z2M Floorplan")
 
 
@@ -59,6 +63,41 @@ APP_TITLE = os.getenv("APP_TITLE", "Z2M Floorplan")
 def get_info():
     """Return public app metadata. No auth required."""
     return JSONResponse(content={"title": APP_TITLE})
+
+
+@app.post("/api/login")
+async def login(request: Request):
+    """Validate the password and start an authenticated session."""
+    # Reject malformed bodies (empty / non-JSON) with 400 instead of crashing with 500
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid body")
+    # Treat a missing/non-string password as empty so it fails auth (401) rather than 500
+    password = body.get("password", "") if isinstance(body, dict) else ""
+    if not isinstance(password, str):
+        password = ""
+    if not secrets.compare_digest(password.encode(), AUTH_PASSWORD.encode()):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong password")
+    request.session["auth"] = True
+    return JSONResponse(content={"ok": True})
+
+
+@app.post("/api/logout")
+async def logout(request: Request):
+    """Clear the session."""
+    request.session.clear()
+    return JSONResponse(content={"ok": True})
+
+
+@app.get("/api/session")
+def get_session(request: Request):
+    """Public: report whether the current session is authenticated.
+
+    Used by the frontend on startup to decide login vs app WITHOUT triggering
+    the 401 path (which would reload-loop, since the HttpOnly cookie is invisible to JS).
+    """
+    return JSONResponse(content={"auth": bool(request.session.get("auth"))})
 
 
 @app.get("/api/config", dependencies=[Depends(verify_auth)])

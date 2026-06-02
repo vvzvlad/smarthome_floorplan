@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { checkCredentials, setCredentials } from '../utils/api';
+import { login } from '../utils/api';
 
 const emit = defineEmits<{ (e: 'success'): void }>();
 
@@ -12,9 +12,8 @@ async function submit() {
     error.value = '';
     loading.value = true;
     try {
-        const ok = await checkCredentials('admin', password.value);
+        const ok = await login(password.value);
         if (ok) {
-            setCredentials('admin', password.value);
             emit('success');
         } else {
             error.value = 'Wrong password';

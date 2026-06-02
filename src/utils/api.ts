@@ -1,32 +1,14 @@
-// Use localStorage (not sessionStorage) so credentials survive app relaunches.
-// As an installed home-screen PWA each cold launch is a fresh session, which would
-// otherwise wipe sessionStorage and force a login on every open.
-const SESSION_KEY = 'smarthome_auth';
-
-export function getAuthHeader(): string {
-    return localStorage.getItem(SESSION_KEY) ?? '';
-}
-
-export function setCredentials(username: string, password: string): void {
-    const encoded = btoa(`${username}:${password}`);
-    localStorage.setItem(SESSION_KEY, `Basic ${encoded}`);
-}
-
-export function clearCredentials(): void {
-    localStorage.removeItem(SESSION_KEY);
-}
+// Auth is carried by a server-set, signed, HttpOnly session cookie (key `fp_session`).
+// Same-origin requests send it automatically, so the frontend never touches the token.
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-    const auth = getAuthHeader();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(auth ? { Authorization: auth } : {}),
         ...(options.headers as Record<string, string> ?? {}),
     };
-    const res = await fetch(path, { ...options, headers });
+    const res = await fetch(path, { credentials: 'same-origin', ...options, headers });
     if (res.status === 401) {
-        clearCredentials();
-        // Reload page to show login form
+        // Session expired/absent -> reload to show the login form.
         window.location.reload();
     }
     return res;
@@ -70,16 +52,30 @@ export async function sendNumberCommand(entityId: string, field: string, value: 
     if (!res.ok) throw new Error('Failed to send number command');
 }
 
-/**
- * Test credentials by making a real request to /api/config.
- * Returns true if server responds with 200, false if 401.
- */
-export async function checkCredentials(username: string, password: string): Promise<boolean> {
-    const encoded = btoa(`${username}:${password}`);
-    const res = await fetch('/api/config', {
-        headers: { Authorization: `Basic ${encoded}` },
+export async function login(password: string): Promise<boolean> {
+    const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ password }),
     });
-    return res.status === 200;
+    return res.ok;
+}
+
+export async function logout(): Promise<void> {
+    await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+}
+
+/** Returns true if the current session cookie is authenticated. Never triggers a reload. */
+export async function checkSession(): Promise<boolean> {
+    try {
+        const res = await fetch('/api/session', { credentials: 'same-origin' });
+        if (!res.ok) return false;
+        const data = await res.json();
+        return data.auth === true;
+    } catch {
+        return false;
+    }
 }
 
 export async function fetchDevices(): Promise<string[]> {
