@@ -96,8 +96,6 @@ function clearAll() {
         store.clearConfig();
     }
 }
-// No, strict mode usually warns. 
-// We implemented updateEntity action.
 
 defineProps<{
     isDrawing: boolean
@@ -111,13 +109,6 @@ function clearPoints() {
     }
 }
 
-// We can use v-model directly on the store's reactive objects if we are careful, 
-// or use computed with get/set.
-// For simplicity since Pinia state is mutable by default (if not in strict mode), 
-// v-model on selectedEntity.x works but bypasses actions. 
-// Ideally we validat/actionize. 
-// BUT for a local tool, direct mutation is often acceptable if 'store' is just state.
-// Let's try direct binding for now for speed, if it fails we wrap.
 const version = __APP_VERSION__;
 
 const knownDevices = ref<string[]>([]);
@@ -536,12 +527,6 @@ button.active {
     background-color: var(--color-primary);
     color: white;
 }
-
-.hint.small {
-    margin-bottom: 0.5rem;
-    font-size: 0.8rem;
-}
-
 
 .hint.small {
     margin-bottom: 0.5rem;
