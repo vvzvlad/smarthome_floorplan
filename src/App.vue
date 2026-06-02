@@ -98,11 +98,13 @@ onUnmounted(() => {
 
 <style scoped>
 .app-header {
-  height: 60px;
+  height: calc(60px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2rem;
+  /* Pad for the iOS status bar / notch (safe-area insets) so content
+     doesn't render under the system status bar with viewport-fit=cover. */
+  padding: env(safe-area-inset-top, 0px) calc(2rem + env(safe-area-inset-right, 0px)) 0 calc(2rem + env(safe-area-inset-left, 0px));
   z-index: 100;
   position: relative;
 }
@@ -145,7 +147,12 @@ main {
 @media (max-width: 768px) {
   .app-header {
     height: auto;
-    padding: 0.25rem 0.5rem;
+    /* Add iOS safe-area insets on top of the base mobile padding. */
+    padding:
+      calc(0.25rem + env(safe-area-inset-top, 0px))
+      calc(0.5rem + env(safe-area-inset-right, 0px))
+      0.25rem
+      calc(0.5rem + env(safe-area-inset-left, 0px));
   }
 
   .logo {
