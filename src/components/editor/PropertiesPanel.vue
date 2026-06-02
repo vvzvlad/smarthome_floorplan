@@ -3,7 +3,7 @@ import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng } from '../../utils/image';
-import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig } from '../../utils/entityForm';
+import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig } from '../../utils/entityForm';
 const store = useFloorplanStore();
 
 
@@ -24,6 +24,10 @@ function addNumberEntity() {
 
 function addButtonEntity() {
     store.addEntity('button');
+}
+
+function addToggleEntity() {
+    store.addEntity('toggle');
 }
 
 function deleteEntity() {
@@ -155,6 +159,9 @@ function onTypeChange() {
     if (selectedEntity.value.type === 'button' && !selectedEntity.value.buttonConfig) {
         store.updateEntity(selectedEntity.value.id, { buttonConfig: defaultButtonConfig() });
     }
+    if (selectedEntity.value.type === 'toggle' && !selectedEntity.value.toggleConfig) {
+        store.updateEntity(selectedEntity.value.id, { toggleConfig: defaultToggleConfig() });
+    }
 }
 
 function setTextJsonPath(e: Event) {
@@ -193,6 +200,18 @@ function setButtonNum(key: 'size', e: Event) {
         if (n !== null) (selectedEntity.value.buttonConfig as any)[key] = n;
     }
 }
+
+function setToggleField(key: 'readTopic' | 'writeTopic' | 'onValue' | 'offValue', e: Event) {
+    if (selectedEntity.value?.toggleConfig) {
+        (selectedEntity.value.toggleConfig as any)[key] = (e.target as HTMLInputElement).value;
+    }
+}
+function setToggleNum(key: 'size', e: Event) {
+    if (selectedEntity.value?.toggleConfig) {
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) (selectedEntity.value.toggleConfig as any)[key] = n;
+    }
+}
 </script>
 
 <template>
@@ -210,6 +229,7 @@ function setButtonNum(key: 'size', e: Event) {
                     <button @click="addTextEntity" class="secondary">Add Text Widget</button>
                     <button @click="addNumberEntity" class="secondary">Add Number Selector</button>
                     <button @click="addButtonEntity" class="secondary">Add Button Widget</button>
+                    <button @click="addToggleEntity" class="secondary">Add Toggle Switch</button>
                 </div>
 
                 <div class="config-actions">
@@ -263,6 +283,7 @@ function setButtonNum(key: 'size', e: Event) {
                             <option value="text">Text</option>
                             <option value="number">Number</option>
                             <option value="button">Button</option>
+                            <option value="toggle">Toggle</option>
                         </select>
                     </div>
 
@@ -367,6 +388,38 @@ function setButtonNum(key: 'size', e: Event) {
                             <input type="number" :value="selectedEntity.buttonConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setButtonNum('size', $event)">
                         </div>
                         <p class="hint small">Publishes the raw value to the topic on click.</p>
+                    </template>
+
+                    <!-- Toggle entity config -->
+                    <template v-else-if="selectedEntity.type === 'toggle'">
+                        <div class="section-title">Toggle Switch</div>
+                        <div class="input-group">
+                            <label>Read Topic</label>
+                            <input type="text" :value="selectedEntity.toggleConfig?.readTopic ?? ''"
+                                @input="setToggleField('readTopic', $event)" placeholder="e.g. home/lamp/state">
+                        </div>
+                        <div class="input-group">
+                            <label>Write Topic</label>
+                            <input type="text" :value="selectedEntity.toggleConfig?.writeTopic ?? ''"
+                                @input="setToggleField('writeTopic', $event)" placeholder="e.g. home/lamp/set">
+                        </div>
+                        <div class="row">
+                            <div class="input-group">
+                                <label>On Value</label>
+                                <input type="text" :value="selectedEntity.toggleConfig?.onValue ?? ''"
+                                    @input="setToggleField('onValue', $event)" placeholder="ON">
+                            </div>
+                            <div class="input-group">
+                                <label>Off Value</label>
+                                <input type="text" :value="selectedEntity.toggleConfig?.offValue ?? ''"
+                                    @input="setToggleField('offValue', $event)" placeholder="OFF">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Size</label>
+                            <input type="number" :value="selectedEntity.toggleConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setToggleNum('size', $event)">
+                        </div>
+                        <p class="hint small">Reads the raw value from the read topic; publishes On/Off value to the write topic on click.</p>
                     </template>
 
                     <!-- Light entity config -->

@@ -127,6 +127,41 @@ def button_topics(config: dict) -> set:
     return topics
 
 
+def toggle_read_topics(config: dict) -> set:
+    """Collect non-empty readTopics of all toggle widgets in the config."""
+    topics = set()
+    for e in config.get("entities", []) or []:
+        if e.get("type") == "toggle":
+            cfg = e.get("toggleConfig") or {}
+            rt = cfg.get("readTopic")
+            if isinstance(rt, str) and rt.strip():
+                topics.add(rt)
+    return topics
+
+
+def toggle_write_topics(config: dict) -> set:
+    """Collect non-empty writeTopics of all toggle widgets in the config."""
+    topics = set()
+    for e in config.get("entities", []) or []:
+        if e.get("type") == "toggle":
+            cfg = e.get("toggleConfig") or {}
+            wt = cfg.get("writeTopic")
+            if isinstance(wt, str) and wt.strip():
+                topics.add(wt)
+    return topics
+
+
+def subscribed_read_topics(config: dict) -> set:
+    """All MQTT read topics the listener must subscribe to (number + toggle widgets)."""
+    return number_read_topics(config) | toggle_read_topics(config)
+
+
+def publishable_topics(config: dict) -> set:
+    """All topics the /api/mqtt/publish endpoint may publish to
+    (number write topics + button topics + toggle write topics)."""
+    return number_write_topics(config) | button_topics(config) | toggle_write_topics(config)
+
+
 async def mqtt_listener_loop():
     """Background task. Subscribes to zigbee2mqtt/# and updates device_states.
     Only processes messages with exactly 2 topic parts: zigbee2mqtt/{friendly_name}.
@@ -137,7 +172,7 @@ async def mqtt_listener_loop():
                 logger.info("MQTT connected to %s:%s", settings.mqtt_host, settings.mqtt_port)
                 await client.subscribe(f"{settings.z2m_base}/#")
                 logger.info("MQTT subscribed to %s/#", settings.z2m_base)
-                read_topics = number_read_topics(read_config())
+                read_topics = subscribed_read_topics(read_config())
                 for t in read_topics:
                     await client.subscribe(t)
                 if read_topics:

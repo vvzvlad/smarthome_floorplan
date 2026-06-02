@@ -12,6 +12,10 @@ from src.mqtt_client import (
     number_read_topics,
     number_write_topics,
     button_topics,
+    toggle_read_topics,
+    toggle_write_topics,
+    subscribed_read_topics,
+    publishable_topics,
     _make_client_kwargs,
 )
 
@@ -199,6 +203,107 @@ def _btn(topic=None, with_cfg=True):
 )
 def test_button_topics(config, expected):
     assert button_topics(config) == expected
+
+
+# --------------------------------------------------------------------------- #
+# UNIT: toggle_read_topics / toggle_write_topics
+# --------------------------------------------------------------------------- #
+def _tog(read=None, write=None, on="ON", off="OFF", with_cfg=True):
+    e = {"type": "toggle"}
+    if with_cfg:
+        cfg = {"onValue": on, "offValue": off}
+        if read is not None:
+            cfg["readTopic"] = read
+        if write is not None:
+            cfg["writeTopic"] = write
+        e["toggleConfig"] = cfg
+    else:
+        e["toggleConfig"] = None
+    return e
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        # happy path
+        ({"entities": [_tog(read="r/1")]}, {"r/1"}),
+        # entities key missing entirely
+        ({}, set()),
+        # entities None
+        ({"entities": None}, set()),
+        # entities empty
+        ({"entities": []}, set()),
+        # toggleConfig is None
+        ({"entities": [_tog(with_cfg=False)]}, set()),
+        # readTopic missing
+        ({"entities": [_tog(read=None)]}, set()),
+        # readTopic empty string
+        ({"entities": [_tog(read="")]}, set()),
+        # readTopic whitespace only
+        ({"entities": [_tog(read="   ")]}, set()),
+        # readTopic non-string dropped
+        ({"entities": [_tog(read=123)]}, set()),
+        # non-toggle entity type ignored
+        ({"entities": [{"type": "light", "toggleConfig": {"readTopic": "x"}}]}, set()),
+        # dedup of identical topics
+        ({"entities": [_tog(read="r/1"), _tog(read="r/1")]}, {"r/1"}),
+        # multiple distinct
+        ({"entities": [_tog(read="r/1"), _tog(read="r/2")]}, {"r/1", "r/2"}),
+    ],
+)
+def test_toggle_read_topics(config, expected):
+    assert toggle_read_topics(config) == expected
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({"entities": [_tog(write="w/1")]}, {"w/1"}),
+        ({}, set()),
+        ({"entities": None}, set()),
+        ({"entities": []}, set()),
+        ({"entities": [_tog(with_cfg=False)]}, set()),
+        ({"entities": [_tog(write=None)]}, set()),
+        ({"entities": [_tog(write="")]}, set()),
+        ({"entities": [_tog(write="   ")]}, set()),
+        ({"entities": [_tog(write=123)]}, set()),
+        ({"entities": [{"type": "light", "toggleConfig": {"writeTopic": "x"}}]}, set()),
+        ({"entities": [_tog(write="w/1"), _tog(write="w/1")]}, {"w/1"}),
+        ({"entities": [_tog(write="w/1"), _tog(write="w/2")]}, {"w/1", "w/2"}),
+    ],
+)
+def test_toggle_write_topics(config, expected):
+    assert toggle_write_topics(config) == expected
+
+
+# --------------------------------------------------------------------------- #
+# UNIT: subscribed_read_topics / publishable_topics
+# --------------------------------------------------------------------------- #
+def test_subscribed_read_topics():
+    # Unions number read topics and toggle read topics; non-read widgets add nothing.
+    config = {
+        "entities": [
+            _num(read="num/read"),
+            _tog(read="tog/read"),
+            _num(write="num/write"),   # write-only number contributes nothing
+            _btn(topic="btn/topic"),   # button contributes nothing
+        ]
+    }
+    assert subscribed_read_topics(config) == {"num/read", "tog/read"}
+
+
+def test_publishable_topics():
+    # Unions number write topics, button topics, and toggle write topics.
+    config = {
+        "entities": [
+            _num(write="num/write"),
+            _btn(topic="btn/topic"),
+            _tog(write="tog/write"),
+            _num(read="num/read"),     # read-only number contributes nothing
+            _tog(read="tog/read"),     # read-only toggle contributes nothing
+        ]
+    }
+    assert publishable_topics(config) == {"num/write", "btn/topic", "tog/write"}
 
 
 # --------------------------------------------------------------------------- #

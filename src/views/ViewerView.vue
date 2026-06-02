@@ -11,7 +11,8 @@ const store = useFloorplanStore();
       :topic-values="store.topicValues"
       @entity-click="(id) => store.toggleEntityState(id)"
       @entity-set-value="(id, topic, value) => store.setNumberValue(id, topic, value)"
-      @entity-send="(topic, value) => store.sendButtonValue(topic, value)" />
+      @entity-send="(topic, value) => store.sendButtonValue(topic, value)"
+      @entity-toggle="(id, topic, value, nextOn) => store.setToggleValue(id, topic, value, nextOn)" />
   </div>
 </template>
 

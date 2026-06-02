@@ -270,6 +270,33 @@ input:focus {
 .button-widget .button-widget-btn:hover { background: rgba(0, 0, 0, 0.06); }
 .button-widget .button-widget-btn:active { background: rgba(0, 0, 0, 0.12); }
 
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  width: 2.4em;
+  height: 1.3em;
+  padding: 0.12em;
+  border-radius: 1em;
+  background: #b0b6c0;            /* off track */
+  box-shadow: 0 0.12em 0.4em rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background 0.2s ease;
+  z-index: 10;
+  /* font-size is set inline (in cqw) per widget to control the overall size */
+}
+.toggle-switch.on { background: #22c55e; }   /* on track */
+.toggle-switch .toggle-knob {
+  width: 1.06em;
+  height: 1.06em;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0.05em 0.15em rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease;
+}
+.toggle-switch.on .toggle-knob { transform: translateX(1.1em); }
+
 .entity-shape {
   /* Style injected via inline styles, but base properties here if needed */
 }

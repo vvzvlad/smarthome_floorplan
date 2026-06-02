@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config_store import read_config, write_config
-from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value, topic_values, publish_raw, number_read_topics, number_write_topics, button_topics
+from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value, topic_values, publish_raw, subscribed_read_topics, publishable_topics
 from .settings import settings
 
 logger = logging.getLogger(__name__)
@@ -122,9 +122,9 @@ def get_config():
 @app.post("/api/config", dependencies=[Depends(verify_auth)])
 async def post_config(request: Request):
     body = await request.json()
-    old_topics = number_read_topics(read_config())
+    old_topics = subscribed_read_topics(read_config())
     write_config(body)
-    if number_read_topics(body) != old_topics:
+    if subscribed_read_topics(body) != old_topics:
         await _restart_mqtt_listener()
     return JSONResponse(content={"ok": True})
 
@@ -192,9 +192,9 @@ async def post_mqtt_publish(request: Request):
             raise HTTPException(status_code=400, detail="value must be a string or number")
         value = str(value)
     cfg = read_config()
-    # Allow publishing only to topics that are configured as a number widget's
-    # write topic OR a button widget's topic — never arbitrary topics.
-    if topic not in (number_write_topics(cfg) | button_topics(cfg)):
+    # Allow publishing only to topics configured by a number widget (write), a
+    # button widget, or a toggle widget (write) — never arbitrary topics.
+    if topic not in publishable_topics(cfg):
         raise HTTPException(status_code=403, detail="topic is not a configured publish topic")
     await publish_raw(topic, value)
     return JSONResponse(content={"ok": True})

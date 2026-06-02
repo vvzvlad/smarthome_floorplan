@@ -2,7 +2,7 @@
 // filtering, numeric-field parsing and default-config seeds can be unit-tested
 // without mounting the component.
 
-import type { TextConfig, NumberConfig, ButtonConfig } from '../types/floorplan';
+import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig } from '../types/floorplan';
 
 /**
  * Filter a device list by a case-insensitive substring query. An empty query
@@ -48,4 +48,12 @@ export function defaultNumberConfig(): NumberConfig {
  */
 export function defaultButtonConfig(): ButtonConfig {
   return { topic: '', value: '', text: 'Send', size: 2.5 };
+}
+
+/**
+ * Default seed for a toggle-entity config, matching PropertiesPanel.vue's
+ * onTypeChange literal.
+ */
+export function defaultToggleConfig(): ToggleConfig {
+  return { readTopic: '', writeTopic: '', onValue: 'ON', offValue: 'OFF', size: 2.5 };
 }

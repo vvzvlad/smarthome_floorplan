@@ -10,6 +10,7 @@ import {
   formatNumberDisplay,
 } from '../../utils/numberWidget';
 import { formatButtonLabel } from '../../utils/buttonWidget';
+import { resolveToggleState } from '../../utils/toggleWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 
 const props = defineProps<{
@@ -23,6 +24,7 @@ const emit = defineEmits<{
     (e: 'entity-long-press', entityId: string): void
     (e: 'entity-set-value', entityId: string, writeTopic: string, value: number): void
     (e: 'entity-send', topic: string, value: string): void
+    (e: 'entity-toggle', entityId: string, writeTopic: string, value: string, nextOn: boolean): void
 }>();
 
 const hasImage = computed(() => !!props.config.imageBase64);
@@ -221,6 +223,32 @@ function sendButton(entity: EntityConfig) {
   emit('entity-send', cfg.topic, cfg.value);
 }
 
+function getToggleState(entity: EntityConfig): boolean {
+  const cfg = entity.toggleConfig;
+  if (!cfg) return false;
+  const st = props.entityStates[entity.entityId];
+  return resolveToggleState(st?.toggleOn, props.topicValues[cfg.readTopic], cfg.onValue);
+}
+
+function getTogglePositionStyle(entity: EntityConfig) {
+  const size = entity.toggleConfig?.size ?? 2.5;
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 2,
+    fontSize: `${size}cqw`,
+  };
+}
+
+function toggleEntity(entity: EntityConfig) {
+  const cfg = entity.toggleConfig;
+  if (!cfg) return;
+  const nextOn = !getToggleState(entity);
+  emit('entity-toggle', entity.entityId, cfg.writeTopic, nextOn ? cfg.onValue : cfg.offValue, nextOn);
+}
+
 function atMin(entity: EntityConfig): boolean {
   const c = entity.numberConfig;
   if (!c) return false;
@@ -299,6 +327,15 @@ function atMax(entity: EntityConfig): boolean {
                 <div v-for="entity in props.config.entities.filter(e => e.type === 'button')" :key="entity.id"
                     class="button-widget" :style="getButtonPositionStyle(entity)" :title="entity.label">
                     <button class="button-widget-btn" @click.stop="sendButton(entity)">{{ getButtonLabel(entity) }}</button>
+                </div>
+
+                <!-- Toggle switches -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'toggle')" :key="entity.id"
+                    class="toggle-switch" :class="{ on: getToggleState(entity) }"
+                    :style="getTogglePositionStyle(entity)" :title="entity.label"
+                    role="switch" :aria-checked="getToggleState(entity)"
+                    @click.stop="toggleEntity(entity)">
+                    <span class="toggle-knob"></span>
                 </div>
             </div>
         </div>

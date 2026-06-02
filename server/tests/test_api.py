@@ -39,6 +39,26 @@ def _button_config(topic="btn/topic", value="ON", text="Send"):
     }
 
 
+def _toggle_config(read_topic="tog/state", write_topic="tog/set", on_value="ON", off_value="OFF"):
+    """Minimal config with one toggle widget so its read/write topics are configured."""
+    return {
+        "id": "x",
+        "name": "Plan",
+        "imageBase64": "",
+        "entities": [
+            {
+                "type": "toggle",
+                "toggleConfig": {
+                    "readTopic": read_topic,
+                    "writeTopic": write_topic,
+                    "onValue": on_value,
+                    "offValue": off_value,
+                },
+            }
+        ],
+    }
+
+
 def test_info_public(client):
     resp = client.get("/api/info")
     assert resp.status_code == 200
@@ -184,6 +204,24 @@ def test_config_restart_when_read_topics_changed(auth_client, monkeypatch):
     assert called["n"] == 1
 
 
+def test_config_restart_when_toggle_read_topics_changed(auth_client, monkeypatch):
+    called = {"n": 0}
+
+    async def fake_restart():
+        called["n"] += 1
+
+    monkeypatch.setattr(api, "_restart_mqtt_listener", fake_restart)
+    # Seed an initial empty-ish config so the toggle readTopic below is a change.
+    auth_client.post("/api/config", json=_number_config(read_topic="sensors/temp"))
+    called["n"] = 0
+    # Introducing a toggle readTopic must trigger a restart now that
+    # subscribed_read_topics includes toggle read topics.
+    assert auth_client.post(
+        "/api/config", json=_toggle_config(read_topic="tog/state")
+    ).status_code == 200
+    assert called["n"] == 1
+
+
 # --------------------------------------------------------------------------- #
 # POST /api/mqtt/publish
 # --------------------------------------------------------------------------- #
@@ -256,6 +294,20 @@ def test_mqtt_publish_button_topic_allowed(auth_client, monkeypatch):
     resp = auth_client.post("/api/mqtt/publish", json={"topic": "btn/topic", "value": "ON"})
     assert resp.status_code == 200
     assert sent == {"topic": "btn/topic", "value": "ON"}
+
+
+def test_mqtt_publish_toggle_write_topic_allowed(auth_client, monkeypatch):
+    sent = {}
+
+    async def fake_publish_raw(topic, value):
+        sent["topic"], sent["value"] = topic, value
+
+    monkeypatch.setattr(api, "publish_raw", fake_publish_raw)
+    # A toggle widget's write topic must be allow-listed for publishing.
+    auth_client.post("/api/config", json=_toggle_config(write_topic="tog/set", on_value="ON"))
+    resp = auth_client.post("/api/mqtt/publish", json={"topic": "tog/set", "value": "ON"})
+    assert resp.status_code == 200
+    assert sent == {"topic": "tog/set", "value": "ON"}
 
 
 # --------------------------------------------------------------------------- #

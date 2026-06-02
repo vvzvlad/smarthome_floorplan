@@ -87,6 +87,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             } : {}),
             ...(type === 'button' ? {
                 buttonConfig: { topic: '', value: '', text: 'Send', size: 2.5 }
+            } : {}),
+            ...(type === 'toggle' ? {
+                toggleConfig: { readTopic: '', writeTopic: '', onValue: 'ON', offValue: 'OFF', size: 2.5 }
             } : {})
         };
         config.value.entities.push(newEntity);
@@ -162,6 +165,17 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         );
     }
 
+    function setToggleValue(entityId: string, writeTopic: string, rawValue: string, nextOn: boolean) {
+        // Without a write topic there is nothing to send — don't show a fake optimistic state.
+        if (!writeTopic) return;
+        const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
+        // Optimistic local update so the switch flips immediately.
+        entityStates.value[entityId] = { ...current, toggleOn: nextOn };
+        publishRaw(writeTopic, rawValue).catch(e =>
+            console.error('Failed to publish toggle value:', e)
+        );
+    }
+
     function setEntityState(entityId: string, state: string, rawPayload?: Record<string, unknown>) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
         const next: EntityState = {
@@ -186,6 +200,19 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             const n = parseFloat(raw);
             if (Number.isFinite(n) && Math.abs(n - st.numberValue) < 1e-9) {
                 entityStates.value[e.entityId] = { ...st, numberValue: undefined };
+            }
+        }
+        // Reconcile toggle widgets: drop the optimistic state once the read topic
+        // reports the value we just published (on -> onValue, off -> offValue).
+        for (const e of config.value.entities) {
+            if (e.type !== 'toggle' || !e.toggleConfig) continue;
+            const st = entityStates.value[e.entityId];
+            if (!st || st.toggleOn === undefined) continue;
+            const raw = values[e.toggleConfig.readTopic];
+            if (raw === undefined) continue;
+            const expected = st.toggleOn ? e.toggleConfig.onValue : e.toggleConfig.offValue;
+            if (raw === expected) {
+                entityStates.value[e.entityId] = { ...st, toggleOn: undefined };
             }
         }
     }
@@ -229,6 +256,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         toggleEntityState,
         setNumberValue,
         sendButtonValue,
+        setToggleValue,
         setEntityState,
         setTopicValues,
         loadConfig,

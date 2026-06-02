@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text' | 'number' | 'button';
+export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -45,6 +45,14 @@ export interface ButtonConfig {
   size: number;    // base font size in cqw; scales the whole widget
 }
 
+export interface ToggleConfig {
+  readTopic: string;    // MQTT topic to read the current raw value from
+  writeTopic: string;   // MQTT topic to publish to on toggle
+  onValue: string;      // raw value representing/Publishing the ON state
+  offValue: string;     // raw value representing/publishing the OFF state
+  size: number;         // base size in cqw; scales the whole switch
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -59,6 +67,7 @@ export interface EntityConfig {
   textConfig?: TextConfig;
   numberConfig?: NumberConfig;
   buttonConfig?: ButtonConfig;
+  toggleConfig?: ToggleConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }
@@ -76,4 +85,5 @@ export interface EntityState {
   shouldLightUp?: boolean;
   rawPayload?: Record<string, unknown>;
   numberValue?: number; // optimistic local value for number widgets
+  toggleOn?: boolean; // optimistic local on/off state for toggle widgets
 }

@@ -66,6 +66,31 @@ function numberEntity(overrides: Partial<EntityConfig> = {}): EntityConfig {
     }
 }
 
+// Build a toggle entity wired to a read/write topic.
+function toggleEntity(overrides: Partial<EntityConfig> = {}): EntityConfig {
+    return {
+        id: 't1',
+        entityId: 'toggle.lamp',
+        label: 'Lamp',
+        type: 'toggle',
+        x: 10,
+        y: 10,
+        shape: 'circle',
+        style: {
+            width: 5,
+            height: 5,
+            colors: { onColor: '#facc15', offColor: '#94a3b8' },
+            onOpacity: 0.8,
+            offOpacity: 0.3,
+            gradientRadius: 30,
+            rotation: 0,
+        },
+        labelConfig: { show: true, offsetX: 0, offsetY: 10, color: '#fff' },
+        toggleConfig: { readTopic: 'z/lamp/state', writeTopic: 'z/lamp/set', onValue: 'ON', offValue: 'OFF', size: 2.5 },
+        ...overrides,
+    }
+}
+
 function makeConfig(entities: EntityConfig[]): FloorplanConfig {
     return { id: 'cfg', name: 'Test', imageBase64: '', entities }
 }
@@ -123,6 +148,34 @@ describe('setTopicValues', () => {
         store.loadConfig(makeConfig([numberEntity()]))
         store.setTopicValues({ 'z/temp': '99' })
         expect(store.topicValues).toEqual({ 'z/temp': '99' })
+    })
+
+    it('clears optimistic toggleOn (on) once read topic reports onValue', () => {
+        const store = useFloorplanStore()
+        store.loadConfig(makeConfig([toggleEntity()]))
+        store.entityStates['toggle.lamp'] = { state: 'off', brightness: 255, toggleOn: true }
+
+        store.setTopicValues({ 'z/lamp/state': 'ON' })
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBeUndefined()
+    })
+
+    it('clears optimistic toggleOn (off) once read topic reports offValue', () => {
+        const store = useFloorplanStore()
+        store.loadConfig(makeConfig([toggleEntity()]))
+        store.entityStates['toggle.lamp'] = { state: 'off', brightness: 255, toggleOn: false }
+
+        store.setTopicValues({ 'z/lamp/state': 'OFF' })
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBeUndefined()
+    })
+
+    it('retains optimistic toggleOn when read topic reports a non-matching value', () => {
+        const store = useFloorplanStore()
+        store.loadConfig(makeConfig([toggleEntity()]))
+        store.entityStates['toggle.lamp'] = { state: 'off', brightness: 255, toggleOn: true }
+
+        // Optimistic is ON (expects 'ON'), but read reports 'OFF' -> keep optimistic.
+        store.setTopicValues({ 'z/lamp/state': 'OFF' })
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBe(true)
     })
 })
 
@@ -216,6 +269,44 @@ describe('sendButtonValue', () => {
     })
 })
 
+describe('setToggleValue', () => {
+    it('writeTopic present, nextOn true -> optimistic toggleOn true + publishRaw(topic, value)', () => {
+        const store = useFloorplanStore()
+        store.entityStates['toggle.lamp'] = { state: 'on', brightness: 100 }
+
+        store.setToggleValue('toggle.lamp', 'z/lamp/set', 'ON', true)
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBe(true)
+        expect(publishRawMock).toHaveBeenCalledWith('z/lamp/set', 'ON')
+        // Existing state/brightness preserved.
+        expect(store.entityStates['toggle.lamp'].state).toBe('on')
+        expect(store.entityStates['toggle.lamp'].brightness).toBe(100)
+    })
+
+    it('writeTopic present, nextOn false -> optimistic toggleOn false stored + publishRaw(topic, value)', () => {
+        const store = useFloorplanStore()
+        store.entityStates['toggle.lamp'] = { state: 'on', brightness: 100 }
+
+        store.setToggleValue('toggle.lamp', 'z/lamp/set', 'OFF', false)
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBe(false)
+        expect(publishRawMock).toHaveBeenCalledWith('z/lamp/set', 'OFF')
+    })
+
+    it('empty writeTopic -> early return, no optimistic state, publishRaw not called', () => {
+        const store = useFloorplanStore()
+        store.entityStates['toggle.lamp'] = { state: 'on', brightness: 100 }
+
+        store.setToggleValue('toggle.lamp', '', 'ON', true)
+        expect(store.entityStates['toggle.lamp'].toggleOn).toBeUndefined()
+        expect(publishRawMock).not.toHaveBeenCalled()
+    })
+
+    it('seeds defaults for an unknown entity while still setting toggleOn', () => {
+        const store = useFloorplanStore()
+        store.setToggleValue('toggle.new', 'z/lamp/set', 'ON', true)
+        expect(store.entityStates['toggle.new']).toMatchObject({ state: 'off', brightness: 255, toggleOn: true })
+    })
+})
+
 describe('setEntityState', () => {
     it("'on' -> shouldLightUp true", () => {
         const store = useFloorplanStore()
@@ -291,6 +382,17 @@ describe('addEntity', () => {
         expect(e.buttonConfig).toEqual({ topic: '', value: '', text: 'Send', size: 2.5 })
         expect(e.numberConfig).toBeUndefined()
         expect(e.textConfig).toBeUndefined()
+    })
+
+    it("'toggle' -> toggleConfig seeded with defaults", () => {
+        const store = useFloorplanStore()
+        store.addEntity('toggle')
+        const e = store.config.entities[0]
+        expect(e.type).toBe('toggle')
+        expect(e.toggleConfig).toEqual({ readTopic: '', writeTopic: '', onValue: 'ON', offValue: 'OFF', size: 2.5 })
+        expect(e.numberConfig).toBeUndefined()
+        expect(e.textConfig).toBeUndefined()
+        expect(e.buttonConfig).toBeUndefined()
     })
 
     it('honors custom x/y', () => {
