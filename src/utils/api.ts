@@ -1,16 +1,19 @@
+// Use localStorage (not sessionStorage) so credentials survive app relaunches.
+// As an installed home-screen PWA each cold launch is a fresh session, which would
+// otherwise wipe sessionStorage and force a login on every open.
 const SESSION_KEY = 'smarthome_auth';
 
 export function getAuthHeader(): string {
-    return sessionStorage.getItem(SESSION_KEY) ?? '';
+    return localStorage.getItem(SESSION_KEY) ?? '';
 }
 
 export function setCredentials(username: string, password: string): void {
     const encoded = btoa(`${username}:${password}`);
-    sessionStorage.setItem(SESSION_KEY, `Basic ${encoded}`);
+    localStorage.setItem(SESSION_KEY, `Basic ${encoded}`);
 }
 
 export function clearCredentials(): void {
-    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
