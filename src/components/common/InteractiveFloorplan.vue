@@ -12,6 +12,7 @@ import {
 import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
+import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
 
 const props = defineProps<{
     config: FloorplanConfig,
@@ -29,13 +30,7 @@ const emit = defineEmits<{
 
 const hasImage = computed(() => !!props.config.imageBase64);
 const svgEl = useTemplateRef<SVGSVGElement>('svgOverlay');
-
-function getSvgAspectRatio(): number {
-    if (!svgEl.value) return 1;
-    const { width, height } = svgEl.value.getBoundingClientRect();
-    // ratio > 1 means wider than tall (landscape)
-    return height > 0 ? width / height : 1;
-}
+const aspectRatio = useSvgAspectRatio(svgEl);
 
 // Long Press Logic
 const longPressTimer = ref<number | null>(null);
@@ -277,7 +272,7 @@ function atMax(entity: EntityConfig): boolean {
                         <radialGradient v-for="entity in props.config.entities.filter(e => e.type === 'light')" :key="'grad-' + entity.id"
                             :id="'grad-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
                             :r="entity.style.gradientRadius"
-                            :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
+                            :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${aspectRatio}) translate(${-entity.x}, ${-entity.y})`">
                             <stop offset="0%" :stop-color="getEntityValues(entity).color"
                                 :stop-opacity="Math.max(0.3, getEntityValues(entity).opacity)" />
                             <stop offset="100%" :stop-color="getEntityValues(entity).color" stop-opacity="0" />
@@ -289,7 +284,7 @@ function atMax(entity: EntityConfig): boolean {
                     </defs>
                     <ellipse v-for="entity in props.config.entities.filter(e => e.type === 'light')" :key="'poly-' + entity.id"
                         :cx="entity.x" :cy="entity.y"
-                        :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
+                        :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * aspectRatio"
                         :fill="props.entityStates[entity.entityId]?.shouldLightUp ? `url(#grad-${entity.id})` : 'transparent'"
                         :clip-path="entity.points && entity.points.length > 0 ? `url(#clip-${entity.id})` : undefined"
                         stroke="none" style="pointer-events: none; transition: fill-opacity 0.3s ease;" />

@@ -3,18 +3,14 @@ import { useFloorplanStore } from '../../stores/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
 import EntityOverlay from './EntityOverlay.vue';
 import { toImagePercent, clampZoom, pointsToSvgString, appendPoint, removePointAt } from '../../utils/coords';
+import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
 
 const store = useFloorplanStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDrawing = ref(false);
 const zoomScale = ref(1);
 const svgEl = useTemplateRef<SVGSVGElement>('svgOverlay');
-
-function getSvgAspectRatio(): number {
-    if (!svgEl.value) return 1;
-    const { width, height } = svgEl.value.getBoundingClientRect();
-    return height > 0 ? width / height : 1;
-}
+const aspectRatio = useSvgAspectRatio(svgEl);
 
 const hasImage = computed(() => !!store.config.imageBase64);
 
@@ -193,7 +189,7 @@ function onPointTouchEnd() {
               <radialGradient v-for="entity in store.entities.filter(e => e.type === 'light')" :key="'grad-' + entity.id"
                 :id="'grad-editor-' + entity.id" gradientUnits="userSpaceOnUse" :cx="entity.x" :cy="entity.y"
                 :r="entity.style.gradientRadius"
-                :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${getSvgAspectRatio()}) translate(${-entity.x}, ${-entity.y})`">
+                :gradientTransform="`translate(${entity.x}, ${entity.y}) scale(1, ${aspectRatio}) translate(${-entity.x}, ${-entity.y})`">
                 <stop offset="0%" :stop-color="(entity.style.colors as any).onColor || '#facc15'"
                   :stop-opacity="entity.style.onOpacity" />
                 <stop offset="100%" :stop-color="(entity.style.colors as any).onColor || '#facc15'" stop-opacity="0" />
@@ -205,7 +201,7 @@ function onPointTouchEnd() {
             </defs>
             <ellipse v-for="entity in store.entities.filter(e => e.type === 'light')" :key="'poly-' + entity.id"
               :cx="entity.x" :cy="entity.y"
-              :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * getSvgAspectRatio()"
+              :rx="entity.style.gradientRadius" :ry="entity.style.gradientRadius * aspectRatio"
               :fill="`url(#grad-editor-${entity.id})`"
               :clip-path="entity.points && entity.points.length > 0 ? `url(#clip-editor-${entity.id})` : undefined"
               stroke="none"
@@ -223,7 +219,7 @@ function onPointTouchEnd() {
               <template v-if="store.selectedEntityId === entity.id">
                 <ellipse v-for="(point, index) in entity.points"
                   :key="'point-' + entity.id + '-' + index" :cx="point.x" :cy="point.y"
-                  rx="0.4" :ry="0.4 * getSvgAspectRatio()"
+                  rx="0.4" :ry="0.4 * aspectRatio"
                   fill="var(--color-primary)"
                   stroke="white" stroke-width="0.1" style="cursor: grab; pointer-events: auto;"
                   @mousedown="onPointMouseDown(index, $event)" @touchstart="onPointTouchStart(index, $event)"
