@@ -2,7 +2,7 @@
 // filtering, numeric-field parsing and default-config seeds can be unit-tested
 // without mounting the component.
 
-import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig } from '../types/floorplan';
+import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig } from '../types/floorplan';
 
 /**
  * Filter a device list by a case-insensitive substring query. An empty query
@@ -56,4 +56,21 @@ export function defaultButtonConfig(): ButtonConfig {
  */
 export function defaultToggleConfig(): ToggleConfig {
   return { readTopic: '', writeTopic: '', onValue: 'ON', offValue: 'OFF', size: 2.5 };
+}
+
+/**
+ * Default seed for a select-entity config, matching PropertiesPanel.vue's
+ * onTypeChange literal. Seeds a 3-option air-conditioner-style mode selector.
+ */
+export function defaultSelectConfig(): SelectConfig {
+  return {
+    readTopic: '',
+    writeTopic: '',
+    options: [
+      { label: 'Off', value: 'OFF' },
+      { label: 'Heat', value: 'heat' },
+      { label: 'Cool', value: 'cool' },
+    ],
+    size: 2.5,
+  };
 }

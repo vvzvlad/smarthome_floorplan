@@ -88,6 +88,15 @@ describe('entityStyle', () => {
     expect(s.width).toBeUndefined()
     expect(s.height).toBeUndefined()
   })
+
+  it('select type: same transparent move handle, no width/height', () => {
+    const s = entityStyle(lightEntity({ type: 'select' }), false)
+    expect(s.background).toBe('transparent')
+    expect(s.transform).toBe('translate(-50%, -50%)')
+    expect(s.borderRadius).toBe('4px')
+    expect(s.width).toBeUndefined()
+    expect(s.height).toBeUndefined()
+  })
 })
 
 describe('labelTransform', () => {

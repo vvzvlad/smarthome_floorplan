@@ -7,6 +7,7 @@ import { dragDeltaPercent } from '../../utils/coords';
 import { resolveNumberValue, formatNumberDisplay } from '../../utils/numberWidget';
 import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
+import { resolveSelectValue } from '../../utils/selectWidget';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
 
 const props = defineProps<{
@@ -247,6 +248,14 @@ const toggleOn = computed(() => {
 });
 const toggleSize = computed(() => `${props.entity.toggleConfig?.size ?? 2.5}cqw`);
 
+const selectValue = computed(() => {
+  if (props.entity.type !== 'select' || !props.entity.selectConfig) return undefined;
+  const cfg = props.entity.selectConfig;
+  const st = store.entityStates[props.entity.entityId];
+  return resolveSelectValue(st?.selectValue, store.topicValues[cfg.readTopic]);
+});
+const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`);
+
 </script>
 
 <template>
@@ -272,6 +281,12 @@ const toggleSize = computed(() => `${props.entity.toggleConfig?.size ?? 2.5}cqw`
     <div v-else-if="entity.type === 'toggle'" class="toggle-switch" :class="{ on: toggleOn }"
       :style="{ fontSize: toggleSize, pointerEvents: 'none' }">
       <span class="toggle-knob"></span>
+    </div>
+    <!-- Select entity: non-interactive segmented preview for placement -->
+    <div v-else-if="entity.type === 'select'" class="multi-switch"
+      :style="{ fontSize: selectSize, pointerEvents: 'none' }">
+      <span v-for="(opt, i) in entity.selectConfig?.options ?? []" :key="i"
+        class="multi-switch-btn" :class="{ active: selectValue === opt.value }">{{ opt.label }}</span>
     </div>
     <!-- Light entity: show label if enabled -->
     <div v-else-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"

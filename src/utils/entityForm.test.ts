@@ -4,6 +4,7 @@ import {
   parseNumberField,
   defaultTextConfig,
   defaultNumberConfig,
+  defaultSelectConfig,
 } from './entityForm'
 
 describe('filterDevices', () => {
@@ -60,6 +61,21 @@ describe('defaultNumberConfig', () => {
       max: 100,
       step: 1,
       unit: '',
+      size: 2.5,
+    })
+  })
+})
+
+describe('defaultSelectConfig', () => {
+  it('matches the contract literal', () => {
+    expect(defaultSelectConfig()).toEqual({
+      readTopic: '',
+      writeTopic: '',
+      options: [
+        { label: 'Off', value: 'OFF' },
+        { label: 'Heat', value: 'heat' },
+        { label: 'Cool', value: 'cool' },
+      ],
       size: 2.5,
     })
   })

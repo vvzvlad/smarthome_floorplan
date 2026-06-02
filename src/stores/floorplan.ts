@@ -91,6 +91,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             } : {}),
             ...(type === 'toggle' ? {
                 toggleConfig: { readTopic: '', writeTopic: '', onValue: 'ON', offValue: 'OFF', size: 2.5 }
+            } : {}),
+            ...(type === 'select' ? {
+                selectConfig: { readTopic: '', writeTopic: '', options: [{ label: 'Off', value: 'OFF' }, { label: 'Heat', value: 'heat' }, { label: 'Cool', value: 'cool' }], size: 2.5 }
             } : {})
         };
         config.value.entities.push(newEntity);
@@ -177,6 +180,17 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         );
     }
 
+    function setSelectValue(entityId: string, writeTopic: string, value: string) {
+        // Without a write topic there is nothing to send — don't show a fake optimistic state.
+        if (!writeTopic) return;
+        const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
+        // Optimistic local update so the active segment changes immediately.
+        entityStates.value[entityId] = { ...current, selectValue: value };
+        publishRaw(writeTopic, value).catch(e =>
+            console.error('Failed to publish select value:', e)
+        );
+    }
+
     function setEntityState(entityId: string, state: string, rawPayload?: Record<string, unknown>) {
         const current = entityStates.value[entityId] || { state: 'off', brightness: 255 };
         const next: EntityState = {
@@ -217,6 +231,18 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             const opposite = st.toggleOn ? e.toggleConfig.offValue : e.toggleConfig.onValue;
             if (raw === expected && raw !== opposite) {
                 entityStates.value[e.entityId] = { ...st, toggleOn: undefined };
+            }
+        }
+        // Reconcile select widgets: drop the optimistic value once the read topic
+        // reports the value we just published (raw === selectValue).
+        for (const e of config.value.entities) {
+            if (e.type !== 'select' || !e.selectConfig) continue;
+            const st = entityStates.value[e.entityId];
+            if (!st || st.selectValue === undefined) continue;
+            const raw = values[e.selectConfig.readTopic];
+            if (raw === undefined) continue;
+            if (raw === st.selectValue) {
+                entityStates.value[e.entityId] = { ...st, selectValue: undefined };
             }
         }
     }
@@ -270,6 +296,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         setNumberValue,
         sendButtonValue,
         setToggleValue,
+        setSelectValue,
         setEntityState,
         setTopicValues,
         loadConfig,

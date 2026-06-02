@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle';
+export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -54,6 +54,18 @@ export interface ToggleConfig {
   size: number;         // base size in cqw; scales the whole switch
 }
 
+export interface SelectOption {
+  label: string;   // segment caption shown to the user, e.g. "Heat"
+  value: string;   // raw value published / matched against the read topic, e.g. "heat"
+}
+
+export interface SelectConfig {
+  readTopic: string;          // MQTT topic to read the current raw value from
+  writeTopic: string;         // MQTT topic to publish to on selection
+  options: SelectOption[];    // the selectable mode options (segments)
+  size: number;               // base size in cqw; scales the whole control
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -69,6 +81,7 @@ export interface EntityConfig {
   numberConfig?: NumberConfig;
   buttonConfig?: ButtonConfig;
   toggleConfig?: ToggleConfig;
+  selectConfig?: SelectConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }
@@ -87,4 +100,5 @@ export interface EntityState {
   rawPayload?: Record<string, unknown>;
   numberValue?: number; // optimistic local value for number widgets
   toggleOn?: boolean; // optimistic local on/off state for toggle widgets
+  selectValue?: string; // optimistic local selected raw value for select widgets
 }

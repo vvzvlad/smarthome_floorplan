@@ -299,6 +299,37 @@ input:focus {
 }
 .toggle-switch.on .toggle-knob { transform: translateX(1.1em); }
 
+.multi-switch {
+  display: inline-flex;
+  background: #ffffff;
+  border-radius: 0.45em;
+  box-shadow: 0 0.12em 0.4em rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  user-select: none;
+  line-height: 1;
+  z-index: 10;
+  /* font-size is set inline (in cqw) per widget to control the overall size */
+}
+.multi-switch .multi-switch-btn {
+  border: none;
+  background: transparent;
+  color: #111;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.45em 0.7em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-left: 0.06em solid rgba(0, 0, 0, 0.12);
+}
+.multi-switch .multi-switch-btn:first-child { border-left: none; }
+.multi-switch .multi-switch-btn:hover:not(.active) { background: rgba(0, 0, 0, 0.06); }
+.multi-switch .multi-switch-btn.active { background: #22c55e; color: #ffffff; }
+
 .entity-shape {
   /* Style injected via inline styles, but base properties here if needed */
 }

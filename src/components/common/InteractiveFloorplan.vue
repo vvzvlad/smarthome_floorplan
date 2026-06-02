@@ -11,6 +11,7 @@ import {
 } from '../../utils/numberWidget';
 import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
+import { resolveSelectValue } from '../../utils/selectWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
 
@@ -26,6 +27,7 @@ const emit = defineEmits<{
     (e: 'entity-set-value', entityId: string, writeTopic: string, value: number): void
     (e: 'entity-send', topic: string, value: string): void
     (e: 'entity-toggle', entityId: string, writeTopic: string, value: string, nextOn: boolean): void
+    (e: 'entity-select', entityId: string, writeTopic: string, value: string): void
 }>();
 
 const hasImage = computed(() => !!props.config.imageBase64);
@@ -246,6 +248,31 @@ function toggleEntity(entity: EntityConfig) {
   emit('entity-toggle', entity.entityId, cfg.writeTopic, nextOn ? cfg.onValue : cfg.offValue, nextOn);
 }
 
+function getSelectValue(entity: EntityConfig): string | undefined {
+  const cfg = entity.selectConfig;
+  if (!cfg) return undefined;
+  const st = props.entityStates[entity.entityId];
+  return resolveSelectValue(st?.selectValue, props.topicValues[cfg.readTopic]);
+}
+
+function getSelectPositionStyle(entity: EntityConfig) {
+  const size = entity.selectConfig?.size ?? 2.5;
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 2,
+    fontSize: `${size}cqw`,
+  };
+}
+
+function selectOption(entity: EntityConfig, value: string) {
+  const cfg = entity.selectConfig;
+  if (!cfg) return;
+  emit('entity-select', entity.entityId, cfg.writeTopic, value);
+}
+
 function atMin(entity: EntityConfig): boolean {
   const c = entity.numberConfig;
   if (!c) return false;
@@ -333,6 +360,14 @@ function atMax(entity: EntityConfig): boolean {
                     role="switch" :aria-checked="getToggleState(entity)"
                     @click.stop="toggleEntity(entity)">
                     <span class="toggle-knob"></span>
+                </div>
+
+                <!-- Multi switches (segmented mode selector) -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'select')" :key="entity.id"
+                    class="multi-switch" :style="getSelectPositionStyle(entity)" :title="entity.label">
+                    <button v-for="(opt, i) in entity.selectConfig?.options ?? []" :key="i"
+                        class="multi-switch-btn" :class="{ active: getSelectValue(entity) === opt.value }"
+                        @click.stop="selectOption(entity, opt.value)">{{ opt.label }}</button>
                 </div>
             </div>
         </div>

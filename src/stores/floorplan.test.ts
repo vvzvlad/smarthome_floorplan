@@ -91,6 +91,35 @@ function toggleEntity(overrides: Partial<EntityConfig> = {}): EntityConfig {
     }
 }
 
+// Build a select (multi-switch) entity wired to a read/write topic.
+function selectEntity(overrides: Partial<EntityConfig> = {}): EntityConfig {
+    return {
+        id: 's1',
+        entityId: 'select.ac',
+        label: 'AC',
+        type: 'select',
+        x: 10,
+        y: 10,
+        shape: 'circle',
+        style: {
+            width: 5,
+            height: 5,
+            colors: { onColor: '#facc15', offColor: '#94a3b8' },
+            onOpacity: 0.8,
+            offOpacity: 0.3,
+            gradientRadius: 30,
+            rotation: 0,
+        },
+        labelConfig: { show: true, offsetX: 0, offsetY: 10, color: '#fff' },
+        selectConfig: {
+            readTopic: 'z/ac/mode', writeTopic: 'z/ac/mode/set',
+            options: [{ label: 'Off', value: 'OFF' }, { label: 'Heat', value: 'heat' }, { label: 'Cool', value: 'cool' }],
+            size: 2.5,
+        },
+        ...overrides,
+    }
+}
+
 function makeConfig(entities: EntityConfig[]): FloorplanConfig {
     return { id: 'cfg', name: 'Test', imageBase64: '', entities }
 }
@@ -189,6 +218,33 @@ describe('setTopicValues', () => {
 
         store.setTopicValues({ 'z/lamp/state': '1' })
         expect(store.entityStates['toggle.lamp'].toggleOn).toBe(true)
+    })
+
+    it('clears optimistic selectValue once read topic reports the matching value', () => {
+        const store = useFloorplanStore()
+        store.loadConfig(makeConfig([selectEntity()]))
+        store.entityStates['select.ac'] = { state: 'off', brightness: 255, selectValue: 'heat' }
+
+        store.setTopicValues({ 'z/ac/mode': 'heat' })
+        expect(store.entityStates['select.ac'].selectValue).toBeUndefined()
+    })
+
+    it('retains optimistic selectValue when read topic reports a different value', () => {
+        const store = useFloorplanStore()
+        store.loadConfig(makeConfig([selectEntity()]))
+        store.entityStates['select.ac'] = { state: 'off', brightness: 255, selectValue: 'heat' }
+
+        store.setTopicValues({ 'z/ac/mode': 'cool' })
+        expect(store.entityStates['select.ac'].selectValue).toBe('heat')
+    })
+
+    it('retains optimistic selectValue when the read topic is absent', () => {
+        const store = useFloorplanStore()
+        store.loadConfig(makeConfig([selectEntity()]))
+        store.entityStates['select.ac'] = { state: 'off', brightness: 255, selectValue: 'heat' }
+
+        store.setTopicValues({ 'some/other/topic': 'heat' })
+        expect(store.entityStates['select.ac'].selectValue).toBe('heat')
     })
 })
 
@@ -320,6 +376,35 @@ describe('setToggleValue', () => {
     })
 })
 
+describe('setSelectValue', () => {
+    it('writeTopic present -> optimistic selectValue set + publishRaw(topic, value)', () => {
+        const store = useFloorplanStore()
+        store.entityStates['select.ac'] = { state: 'on', brightness: 100 }
+
+        store.setSelectValue('select.ac', 'z/ac/mode/set', 'heat')
+        expect(store.entityStates['select.ac'].selectValue).toBe('heat')
+        expect(publishRawMock).toHaveBeenCalledWith('z/ac/mode/set', 'heat')
+        // Existing state/brightness preserved.
+        expect(store.entityStates['select.ac'].state).toBe('on')
+        expect(store.entityStates['select.ac'].brightness).toBe(100)
+    })
+
+    it('empty writeTopic -> early return, no optimistic value, publishRaw not called', () => {
+        const store = useFloorplanStore()
+        store.entityStates['select.ac'] = { state: 'on', brightness: 100 }
+
+        store.setSelectValue('select.ac', '', 'heat')
+        expect(store.entityStates['select.ac'].selectValue).toBeUndefined()
+        expect(publishRawMock).not.toHaveBeenCalled()
+    })
+
+    it('seeds defaults for an unknown entity while still setting selectValue', () => {
+        const store = useFloorplanStore()
+        store.setSelectValue('select.new', 'z/ac/mode/set', 'cool')
+        expect(store.entityStates['select.new']).toMatchObject({ state: 'off', brightness: 255, selectValue: 'cool' })
+    })
+})
+
 describe('setEntityState', () => {
     it("'on' -> shouldLightUp true", () => {
         const store = useFloorplanStore()
@@ -406,6 +491,22 @@ describe('addEntity', () => {
         expect(e.numberConfig).toBeUndefined()
         expect(e.textConfig).toBeUndefined()
         expect(e.buttonConfig).toBeUndefined()
+    })
+
+    it("'select' -> selectConfig seeded with defaults", () => {
+        const store = useFloorplanStore()
+        store.addEntity('select')
+        const e = store.config.entities[0]
+        expect(e.type).toBe('select')
+        expect(e.selectConfig).toEqual({
+            readTopic: '', writeTopic: '',
+            options: [{ label: 'Off', value: 'OFF' }, { label: 'Heat', value: 'heat' }, { label: 'Cool', value: 'cool' }],
+            size: 2.5,
+        })
+        expect(e.numberConfig).toBeUndefined()
+        expect(e.textConfig).toBeUndefined()
+        expect(e.buttonConfig).toBeUndefined()
+        expect(e.toggleConfig).toBeUndefined()
     })
 
     it('honors custom x/y', () => {

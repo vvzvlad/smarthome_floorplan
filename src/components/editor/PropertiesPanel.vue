@@ -4,7 +4,7 @@ import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
 import { sanitizeFilenameBase, triggerDownload } from '../../utils/download';
-import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig } from '../../utils/entityForm';
+import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig, defaultSelectConfig } from '../../utils/entityForm';
 import { normalizeImportedConfig } from '../../utils/configMigration';
 const store = useFloorplanStore();
 
@@ -30,6 +30,10 @@ function addButtonEntity() {
 
 function addToggleEntity() {
     store.addEntity('toggle');
+}
+
+function addSelectEntity() {
+    store.addEntity('select');
 }
 
 function deleteEntity() {
@@ -207,6 +211,9 @@ function onTypeChange() {
     if (selectedEntity.value.type === 'toggle' && !selectedEntity.value.toggleConfig) {
         store.updateEntity(selectedEntity.value.id, { toggleConfig: defaultToggleConfig() });
     }
+    if (selectedEntity.value.type === 'select' && !selectedEntity.value.selectConfig) {
+        store.updateEntity(selectedEntity.value.id, { selectConfig: defaultSelectConfig() });
+    }
 }
 
 function setTextJsonPath(e: Event) {
@@ -264,6 +271,32 @@ function setToggleNum(key: 'size', e: Event) {
         if (n !== null) (selectedEntity.value.toggleConfig as any)[key] = n;
     }
 }
+
+function setSelectField(key: 'readTopic' | 'writeTopic', e: Event) {
+    if (selectedEntity.value?.selectConfig) {
+        (selectedEntity.value.selectConfig as any)[key] = (e.target as HTMLInputElement).value;
+    }
+}
+function setSelectNum(key: 'size', e: Event) {
+    if (selectedEntity.value?.selectConfig) {
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) (selectedEntity.value.selectConfig as any)[key] = n;
+    }
+}
+function setSelectOptionLabel(index: number, e: Event) {
+    const opt = selectedEntity.value?.selectConfig?.options[index];
+    if (opt) opt.label = (e.target as HTMLInputElement).value;
+}
+function setSelectOptionValue(index: number, e: Event) {
+    const opt = selectedEntity.value?.selectConfig?.options[index];
+    if (opt) opt.value = (e.target as HTMLInputElement).value;
+}
+function addSelectOption() {
+    selectedEntity.value?.selectConfig?.options.push({ label: 'New', value: '' });
+}
+function removeSelectOption(index: number) {
+    selectedEntity.value?.selectConfig?.options.splice(index, 1);
+}
 </script>
 
 <template>
@@ -282,6 +315,7 @@ function setToggleNum(key: 'size', e: Event) {
                     <button @click="addNumberEntity" class="secondary">Add Number Selector</button>
                     <button @click="addButtonEntity" class="secondary">Add Button Widget</button>
                     <button @click="addToggleEntity" class="secondary">Add Toggle Switch</button>
+                    <button @click="addSelectEntity" class="secondary">Add Multi Switch</button>
                 </div>
 
                 <div class="config-actions">
@@ -342,6 +376,7 @@ function setToggleNum(key: 'size', e: Event) {
                             <option value="number">Number</option>
                             <option value="button">Button</option>
                             <option value="toggle">Toggle</option>
+                            <option value="select">Multi Switch</option>
                         </select>
                     </div>
 
@@ -482,6 +517,39 @@ function setToggleNum(key: 'size', e: Event) {
                             <input type="number" :value="selectedEntity.toggleConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setToggleNum('size', $event)">
                         </div>
                         <p class="hint small">Reads the raw value from the read topic; publishes On/Off value to the write topic on click.</p>
+                    </template>
+
+                    <!-- Select entity config -->
+                    <template v-else-if="selectedEntity.type === 'select'">
+                        <div class="section-title">Multi Switch</div>
+                        <div class="input-group">
+                            <label>Read Topic</label>
+                            <input type="text" :value="selectedEntity.selectConfig?.readTopic ?? ''"
+                                @input="setSelectField('readTopic', $event)" placeholder="e.g. home/ac/mode">
+                        </div>
+                        <div class="input-group">
+                            <label>Write Topic</label>
+                            <input type="text" :value="selectedEntity.selectConfig?.writeTopic ?? ''"
+                                @input="setSelectField('writeTopic', $event)" placeholder="e.g. home/ac/mode/set">
+                        </div>
+                        <div class="section-title">Options</div>
+                        <div v-for="(opt, i) in selectedEntity.selectConfig?.options ?? []" :key="i" class="row">
+                            <div class="input-group">
+                                <label>Label</label>
+                                <input type="text" :value="opt.label" @input="setSelectOptionLabel(i, $event)" placeholder="Heat">
+                            </div>
+                            <div class="input-group">
+                                <label>Value</label>
+                                <input type="text" :value="opt.value" @input="setSelectOptionValue(i, $event)" placeholder="heat">
+                            </div>
+                            <button class="icon-btn danger" @click="removeSelectOption(i)" title="Remove option">X</button>
+                        </div>
+                        <button class="secondary small" @click="addSelectOption">Add Option</button>
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <label>Size</label>
+                            <input type="number" :value="selectedEntity.selectConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setSelectNum('size', $event)">
+                        </div>
+                        <p class="hint small">Publishes the selected option's value to the write topic; highlights the option whose value matches the read topic.</p>
                     </template>
 
                     <!-- Light entity config -->
