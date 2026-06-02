@@ -142,6 +142,9 @@ main {
   display: flex;
   overflow: hidden;
   position: relative;
+  /* Reserve the iOS bottom safe area (home indicator) so content
+     does not sit under it with viewport-fit=cover. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @media (max-width: 768px) {
