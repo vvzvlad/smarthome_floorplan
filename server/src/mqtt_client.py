@@ -151,15 +151,39 @@ def toggle_write_topics(config: dict) -> set:
     return topics
 
 
+def select_read_topics(config: dict) -> set:
+    """Collect non-empty readTopics of all select (multi-switch) widgets in the config."""
+    topics = set()
+    for e in config.get("entities", []) or []:
+        if e.get("type") == "select":
+            cfg = e.get("selectConfig") or {}
+            rt = cfg.get("readTopic")
+            if isinstance(rt, str) and rt.strip():
+                topics.add(rt)
+    return topics
+
+
+def select_write_topics(config: dict) -> set:
+    """Collect non-empty writeTopics of all select (multi-switch) widgets in the config."""
+    topics = set()
+    for e in config.get("entities", []) or []:
+        if e.get("type") == "select":
+            cfg = e.get("selectConfig") or {}
+            wt = cfg.get("writeTopic")
+            if isinstance(wt, str) and wt.strip():
+                topics.add(wt)
+    return topics
+
+
 def subscribed_read_topics(config: dict) -> set:
-    """All MQTT read topics the listener must subscribe to (number + toggle widgets)."""
-    return number_read_topics(config) | toggle_read_topics(config)
+    """All MQTT read topics the listener must subscribe to (number + toggle + select widgets)."""
+    return number_read_topics(config) | toggle_read_topics(config) | select_read_topics(config)
 
 
 def publishable_topics(config: dict) -> set:
     """All topics the /api/mqtt/publish endpoint may publish to
-    (number write topics + button topics + toggle write topics)."""
-    return number_write_topics(config) | button_topics(config) | toggle_write_topics(config)
+    (number write topics + button topics + toggle write topics + select write topics)."""
+    return number_write_topics(config) | button_topics(config) | toggle_write_topics(config) | select_write_topics(config)
 
 
 async def mqtt_listener_loop():

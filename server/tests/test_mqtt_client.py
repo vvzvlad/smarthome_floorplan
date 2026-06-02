@@ -14,6 +14,8 @@ from src.mqtt_client import (
     button_topics,
     toggle_read_topics,
     toggle_write_topics,
+    select_read_topics,
+    select_write_topics,
     subscribed_read_topics,
     publishable_topics,
     _make_client_kwargs,
@@ -277,33 +279,107 @@ def test_toggle_write_topics(config, expected):
 
 
 # --------------------------------------------------------------------------- #
+# UNIT: select_read_topics / select_write_topics
+# --------------------------------------------------------------------------- #
+def _sel(read=None, write=None, options=None, with_cfg=True):
+    e = {"type": "select"}
+    if with_cfg:
+        cfg = {"options": options if options is not None else [{"label": "Off", "value": "OFF"}]}
+        if read is not None:
+            cfg["readTopic"] = read
+        if write is not None:
+            cfg["writeTopic"] = write
+        e["selectConfig"] = cfg
+    else:
+        e["selectConfig"] = None
+    return e
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        # happy path
+        ({"entities": [_sel(read="r/1")]}, {"r/1"}),
+        # entities key missing entirely
+        ({}, set()),
+        # entities None
+        ({"entities": None}, set()),
+        # entities empty
+        ({"entities": []}, set()),
+        # selectConfig is None
+        ({"entities": [_sel(with_cfg=False)]}, set()),
+        # readTopic missing
+        ({"entities": [_sel(read=None)]}, set()),
+        # readTopic empty string
+        ({"entities": [_sel(read="")]}, set()),
+        # readTopic whitespace only
+        ({"entities": [_sel(read="   ")]}, set()),
+        # readTopic non-string dropped
+        ({"entities": [_sel(read=123)]}, set()),
+        # non-select entity type ignored
+        ({"entities": [{"type": "light", "selectConfig": {"readTopic": "x"}}]}, set()),
+        # dedup of identical topics
+        ({"entities": [_sel(read="r/1"), _sel(read="r/1")]}, {"r/1"}),
+        # multiple distinct
+        ({"entities": [_sel(read="r/1"), _sel(read="r/2")]}, {"r/1", "r/2"}),
+    ],
+)
+def test_select_read_topics(config, expected):
+    assert select_read_topics(config) == expected
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({"entities": [_sel(write="w/1")]}, {"w/1"}),
+        ({}, set()),
+        ({"entities": None}, set()),
+        ({"entities": []}, set()),
+        ({"entities": [_sel(with_cfg=False)]}, set()),
+        ({"entities": [_sel(write=None)]}, set()),
+        ({"entities": [_sel(write="")]}, set()),
+        ({"entities": [_sel(write="   ")]}, set()),
+        ({"entities": [_sel(write=123)]}, set()),
+        ({"entities": [{"type": "light", "selectConfig": {"writeTopic": "x"}}]}, set()),
+        ({"entities": [_sel(write="w/1"), _sel(write="w/1")]}, {"w/1"}),
+        ({"entities": [_sel(write="w/1"), _sel(write="w/2")]}, {"w/1", "w/2"}),
+    ],
+)
+def test_select_write_topics(config, expected):
+    assert select_write_topics(config) == expected
+
+
+# --------------------------------------------------------------------------- #
 # UNIT: subscribed_read_topics / publishable_topics
 # --------------------------------------------------------------------------- #
 def test_subscribed_read_topics():
-    # Unions number read topics and toggle read topics; non-read widgets add nothing.
+    # Unions number, toggle and select read topics; non-read widgets add nothing.
     config = {
         "entities": [
             _num(read="num/read"),
             _tog(read="tog/read"),
+            _sel(read="sel/read"),
             _num(write="num/write"),   # write-only number contributes nothing
             _btn(topic="btn/topic"),   # button contributes nothing
         ]
     }
-    assert subscribed_read_topics(config) == {"num/read", "tog/read"}
+    assert subscribed_read_topics(config) == {"num/read", "tog/read", "sel/read"}
 
 
 def test_publishable_topics():
-    # Unions number write topics, button topics, and toggle write topics.
+    # Unions number write topics, button topics, toggle write topics and select write topics.
     config = {
         "entities": [
             _num(write="num/write"),
             _btn(topic="btn/topic"),
             _tog(write="tog/write"),
+            _sel(write="sel/write"),
             _num(read="num/read"),     # read-only number contributes nothing
             _tog(read="tog/read"),     # read-only toggle contributes nothing
+            _sel(read="sel/read"),     # read-only select contributes nothing
         ]
     }
-    assert publishable_topics(config) == {"num/write", "btn/topic", "tog/write"}
+    assert publishable_topics(config) == {"num/write", "btn/topic", "tog/write", "sel/write"}
 
 
 # --------------------------------------------------------------------------- #

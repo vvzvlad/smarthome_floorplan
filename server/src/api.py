@@ -193,7 +193,8 @@ async def post_mqtt_publish(request: Request):
         value = str(value)
     cfg = read_config()
     # Allow publishing only to topics configured by a number widget (write), a
-    # button widget, or a toggle widget (write) — never arbitrary topics.
+    # button widget, a toggle widget (write), or a select widget (write) — never
+    # arbitrary topics.
     if topic not in publishable_topics(cfg):
         raise HTTPException(status_code=403, detail="topic is not a configured publish topic")
     await publish_raw(topic, value)
