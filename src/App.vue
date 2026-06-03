@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { logout, fetchStates, fetchTopicValues, fetchBootstrap } from './utils/api';
+import { logout, fetchStates, fetchTopicValues, fetchBootstrap, fetchConfigCached } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import { normalizeEntityState } from './utils/entityState';
 import type { FloorplanConfig } from './types/floorplan';
@@ -61,11 +61,14 @@ async function loadStates() {
 
 async function onLoginSuccess() {
     isAuthenticated.value = true;
-    // The login set the session cookie; re-fetch the bootstrap payload to populate
-    // the app without an extra round of serial requests.
-    const boot = await fetchBootstrap();
+    // The login set the session cookie; we're definitely authed. Fetch the dynamic
+    // bootstrap and the (SW-cached) config in parallel to populate the app.
+    const [boot, rawConfig] = await Promise.all([
+        fetchBootstrap(),
+        fetchConfigCached().catch(() => null),
+    ]);
     appTitle.value = boot.title || 'HA Floorplan';
-    if (boot.config) applyConfig(boot.config);
+    if (rawConfig) applyConfig(rawConfig);
     applyStates(boot.states ?? {});
     store.setTopicValues(boot.topics ?? {});
     if (!pollInterval) pollInterval = setInterval(loadStates, 5000);
@@ -81,33 +84,49 @@ async function onLogout() {
         // Server-side session cleanup may have failed (e.g. a timed-out request);
         // reloading still drops the in-memory app state and shows the login form.
     } finally {
+        // Drop the SW-cached config so a logged-out user can't briefly see the
+        // previous floorplan via the optimistic render on the next open.
+        if ('caches' in window) {
+            try { await caches.delete('api-config'); } catch { /* best-effort */ }
+        }
         window.location.reload();
     }
 }
 
 onMounted(async () => {
-    // Single combined startup request: reports auth and, when authed, bundles
-    // config + states + topics, replacing four serial round-trips.
-    const boot = await fetchBootstrap();
-    appTitle.value = boot.title || 'HA Floorplan';
-    try {
-        if (boot.auth && boot.config) {
-            isAuthenticated.value = true;
-            // Order matters: loadConfig() resets entityStates and setTopicValues
-            // reconciles against the loaded config, so config must be applied first.
-            applyConfig(boot.config);
-            applyStates(boot.states ?? {});
-            store.setTopicValues(boot.topics ?? {});
-            // Poll device states every 5 seconds.
-            pollInterval = setInterval(loadStates, 5000);
-        } else {
-            isAuthenticated.value = false;
-        }
-    } finally {
-        // Open the gate only after startup settles, so a logged-in user never
-        // sees the login dialog flash on first paint.
-        authChecked.value = true;
+    // Fire both in parallel: the (SW-cached) config and the dynamic bootstrap.
+    const bootP = fetchBootstrap();
+    const configP = fetchConfigCached().catch(() => null);
+
+    // Optimistic paint: if a config is available (instant from the SW cache on repeat
+    // loads), render the floorplan now WITHOUT waiting for the auth round-trip. A
+    // never-authenticated client gets 401 -> null here, so it never sees the app.
+    const rawConfig = await configP;
+    if (rawConfig) {
+        isAuthenticated.value = true;
+        applyConfig(rawConfig);
+        authChecked.value = true; // paint immediately (repeat load: ~0 RTT)
     }
+
+    // Bootstrap confirms the session and brings live device state.
+    const boot = await bootP;
+    appTitle.value = boot.title || 'HA Floorplan';
+    if (boot.auth) {
+        isAuthenticated.value = true;
+        if (!rawConfig) {
+            // First authed load with a cold cache: config wasn't ready before bootstrap;
+            // it resolved (or will) via configP — apply it if present.
+            const late = await configP;
+            if (late) applyConfig(late);
+        }
+        applyStates(boot.states ?? {});
+        store.setTopicValues(boot.topics ?? {});
+        if (!pollInterval) pollInterval = setInterval(loadStates, 5000);
+    } else {
+        // Session invalid/expired: drop any optimistic view and show login.
+        isAuthenticated.value = false;
+    }
+    authChecked.value = true;
 });
 
 onUnmounted(() => {

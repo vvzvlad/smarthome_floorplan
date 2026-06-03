@@ -95,9 +95,10 @@ def test_bootstrap_authenticated(auth_client):
     body = resp.json()
     assert body["auth"] is True
     assert "title" in body
-    # Authed payload bundles config + states + topics.
-    assert "config" in body and "states" in body and "topics" in body
-    assert body["config"] == cfg
+    # Authed payload carries only dynamic data: states + topics. The config is now
+    # served separately by /api/config (so the service worker can cache it).
+    assert "config" not in body
+    assert "states" in body and "topics" in body
 
 
 def test_login_wrong_password(client):

@@ -3,12 +3,14 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 
-// Mock the api module App.vue talks to. fetchBootstrap gates the whole app.
+// Mock the api module App.vue talks to. fetchBootstrap reports auth + dynamic data;
+// fetchConfigCached supplies the (SW-cached) floorplan config.
 vi.mock('./utils/api', () => ({
     logout: vi.fn().mockResolvedValue(undefined),
     fetchStates: vi.fn().mockResolvedValue({}),
     fetchTopicValues: vi.fn().mockResolvedValue({}),
     fetchBootstrap: vi.fn(),
+    fetchConfigCached: vi.fn(),
 }))
 
 import App from './App.vue'
@@ -17,6 +19,7 @@ import { useFloorplanStore } from './stores/floorplan'
 import type { FloorplanConfig } from './types/floorplan'
 
 const fetchBootstrapMock = vi.mocked(api.fetchBootstrap)
+const fetchConfigCachedMock = vi.mocked(api.fetchConfigCached)
 
 // Minimal config the store can load.
 function emptyConfig(): FloorplanConfig {
@@ -52,12 +55,15 @@ async function mountApp() {
 
 beforeEach(() => {
     vi.clearAllMocks()
-    fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'HA Floorplan', config: emptyConfig(), states: {}, topics: {} })
+    fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'HA Floorplan', states: {}, topics: {} })
+    fetchConfigCachedMock.mockResolvedValue(emptyConfig())
 })
 
 describe('App.vue — auth gate', () => {
     it('renders LoginForm and no header when the session is not authenticated', async () => {
         fetchBootstrapMock.mockResolvedValue({ auth: false, title: 'HA Floorplan' })
+        // Unauthenticated: the (uncached) config fetch returns 401 -> null.
+        fetchConfigCachedMock.mockResolvedValue(null)
         const { wrapper, store } = await mountApp()
         await flushPromises()
 
@@ -68,7 +74,8 @@ describe('App.vue — auth gate', () => {
     })
 
     it('renders the header + RouterView (no LoginForm) when authenticated, and loads config', async () => {
-        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'My House', config: emptyConfig(), states: {}, topics: {} })
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'My House', states: {}, topics: {} })
+        fetchConfigCachedMock.mockResolvedValue(emptyConfig())
         const { wrapper, store } = await mountApp()
         await flushPromises()
 
@@ -80,12 +87,13 @@ describe('App.vue — auth gate', () => {
         expect(header.find('.logo').text()).toBe('My House')
         // Viewer route rendered through RouterView.
         expect(wrapper.find('.stub-viewer').exists()).toBe(true)
-        // Init ran: config from bootstrap loaded into the store.
+        // Init ran: config from the cached config fetch loaded into the store.
         expect(store.config.name).toBe('Test')
     })
 
     it('falls back to the default title when the bootstrap title is missing', async () => {
-        fetchBootstrapMock.mockResolvedValue({ auth: true, title: '', config: emptyConfig(), states: {}, topics: {} })
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: '', states: {}, topics: {} })
+        fetchConfigCachedMock.mockResolvedValue(emptyConfig())
         const { wrapper } = await mountApp()
         await flushPromises()
 
@@ -126,7 +134,8 @@ describe('App.vue — config migration on init', () => {
                 },
             ],
         }
-        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'Old', config: oldConfig, states: {}, topics: {} })
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'Old', states: {}, topics: {} })
+        fetchConfigCachedMock.mockResolvedValue(oldConfig)
 
         const { store } = await mountApp()
         await flushPromises()
@@ -136,6 +145,21 @@ describe('App.vue — config migration on init', () => {
         expect(ent.style.colors).toEqual({ onColor: '#ff0000', offColor: '#00ff00' })
         expect(ent.style.onColor).toBeUndefined()
         expect(ent.style.offColor).toBeUndefined()
+    })
+})
+
+describe('App.vue — optimistic render', () => {
+    it('drops the optimistic view and shows LoginForm when bootstrap reports auth:false', async () => {
+        // A stale SW-cached config is served instantly (optimistic paint), but the
+        // bootstrap round-trip then reveals the session is gone -> show login.
+        fetchConfigCachedMock.mockResolvedValue(emptyConfig())
+        fetchBootstrapMock.mockResolvedValue({ auth: false, title: 'HA Floorplan' })
+        const { wrapper } = await mountApp()
+        await flushPromises()
+
+        // After everything settles, the optimistic view is gone and login is shown.
+        expect(wrapper.find('.login-overlay').exists()).toBe(true)
+        expect(wrapper.find('header.app-header').exists()).toBe(false)
     })
 })
 
@@ -155,7 +179,8 @@ describe('App.vue — logout', () => {
     })
 
     it('reloads to the login screen after a successful logout', async () => {
-        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'X', config: emptyConfig(), states: {}, topics: {} })
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'X', states: {}, topics: {} })
+        fetchConfigCachedMock.mockResolvedValue(emptyConfig())
         vi.mocked(api.logout).mockResolvedValueOnce(undefined)
         const { wrapper } = await mountApp()
         await flushPromises()
@@ -169,7 +194,8 @@ describe('App.vue — logout', () => {
     // unhandled promise rejection — is enforced by Vitest's global unhandled-rejection
     // tripwire: drop the `catch` in onLogout and `vitest run` fails the whole run.
     it('still reloads when logout() rejects (e.g. a timed-out request)', async () => {
-        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'X', config: emptyConfig(), states: {}, topics: {} })
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'X', states: {}, topics: {} })
+        fetchConfigCachedMock.mockResolvedValue(emptyConfig())
         vi.mocked(api.logout).mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'))
         const { wrapper } = await mountApp()
         await flushPromises()

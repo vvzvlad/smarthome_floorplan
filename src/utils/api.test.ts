@@ -3,6 +3,7 @@ import {
     sendCommand,
     checkSession,
     fetchConfig,
+    fetchConfigCached,
     saveConfig,
     fetchStates,
     fetchTopicValues,
@@ -109,7 +110,7 @@ describe('checkSession', () => {
 
 describe('fetchBootstrap', () => {
     it('returns the parsed body on ok and never reloads', async () => {
-        const body = { auth: true, title: 'My House', config: { id: 'a' }, states: {}, topics: {} }
+        const body = { auth: true, title: 'My House', states: {}, topics: {} }
         fetchMock.mockResolvedValue(makeResponse({ ok: true, json: body }))
         const result = await fetchBootstrap()
         const [url, init] = fetchMock.mock.calls[0]
@@ -128,6 +129,30 @@ describe('fetchBootstrap', () => {
     it('returns a safe default when fetch throws', async () => {
         fetchMock.mockRejectedValue(new TypeError('network down'))
         expect(await fetchBootstrap()).toEqual({ auth: false, title: 'HA Floorplan' })
+    })
+})
+
+describe('fetchConfigCached', () => {
+    it('200 -> parsed JSON config', async () => {
+        const cfg = { id: 'a', name: 'n', entities: [] }
+        fetchMock.mockResolvedValue(makeResponse({ ok: true, json: cfg }))
+        const result = await fetchConfigCached()
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/api/config')
+        expect((init as RequestInit).credentials).toBe('same-origin')
+        expect(result).toEqual(cfg)
+    })
+
+    it('401 -> null and never triggers a reload', async () => {
+        // Plain fetch (not apiFetch), so a 401 must NOT reload — it just yields null.
+        fetchMock.mockResolvedValue(makeResponse({ ok: false, status: 401 }))
+        expect(await fetchConfigCached()).toBeNull()
+        expect(reloadMock).not.toHaveBeenCalled()
+    })
+
+    it('500 -> throws', async () => {
+        fetchMock.mockResolvedValue(makeResponse({ ok: false, status: 500 }))
+        await expect(fetchConfigCached()).rejects.toThrow('Failed to fetch config')
     })
 })
 

@@ -39,6 +39,18 @@ export default defineConfig({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
+          {
+            // Serve the floorplan config from cache instantly, revalidate in the background.
+            urlPattern: ({ url }) => url.pathname === '/api/config',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'api-config',
+              cacheableResponse: { statuses: [200] }, // never cache a 401 (logged-out) response
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+        ],
       },
     }),
   ],

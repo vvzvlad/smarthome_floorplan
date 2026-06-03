@@ -43,6 +43,16 @@ export async function fetchConfig(): Promise<object> {
     return res.json();
 }
 
+/** Fetch the floorplan config. Plain fetch (not apiFetch) so a 401 does NOT trigger
+ *  the reload path. The service worker serves this from cache (StaleWhileRevalidate)
+ *  on repeat loads. Returns null when unauthenticated (401). */
+export async function fetchConfigCached(): Promise<object | null> {
+    const res = await fetch('/api/config', { credentials: 'same-origin' });
+    if (res.status === 401) return null;
+    if (!res.ok) throw new Error('Failed to fetch config');
+    return res.json();
+}
+
 export async function saveConfig(config: object): Promise<void> {
     const res = await apiFetch('/api/config', {
         method: 'POST',
@@ -109,12 +119,11 @@ export async function checkSession(): Promise<boolean> {
 export interface BootstrapData {
     auth: boolean;
     title: string;
-    config?: object;
     states?: Record<string, Record<string, unknown>>;
     topics?: Record<string, string>;
 }
 
-/** One-shot startup payload (auth + title, plus config/states/topics when authed).
+/** One-shot startup payload (auth + title, plus states/topics when authed).
  *  Public endpoint; never triggers the 401 reload path. */
 export async function fetchBootstrap(): Promise<BootstrapData> {
     try {

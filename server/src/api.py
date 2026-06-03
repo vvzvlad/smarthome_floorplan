@@ -125,13 +125,14 @@ def get_session(request: Request):
 
 @app.get("/api/bootstrap")
 def get_bootstrap(request: Request):
-    """Public: one-shot startup payload. Reports auth status and, when authed,
-    bundles config + device states + read-topic values so the frontend needs a
-    single round-trip instead of four serial ones. Never 401s (like /api/session)."""
+    """Public: one-shot startup payload carrying only the DYNAMIC data. Reports
+    auth status and, when authed, bundles device states + read-topic values. The
+    floorplan config is served separately by /api/config so a service worker can
+    cache it (StaleWhileRevalidate) and paint repeat loads instantly. Never 401s
+    (like /api/session)."""
     authed = bool(request.session.get("auth"))
     payload = {"auth": authed, "title": settings.app_title}
     if authed:
-        payload["config"] = read_config()
         payload["states"] = device_states
         payload["topics"] = topic_values
     return JSONResponse(content=payload)
