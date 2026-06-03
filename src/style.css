@@ -30,6 +30,13 @@
   line-height: 1.5;
   font-weight: 400;
 
+  /* Disable mobile font boosting (text auto-sizing). Without this, mobile
+     browsers inflate computed font-size per element by varying multipliers,
+     which desyncs em-based border-radius from the widgets' box geometry and
+     makes the corner rounding look different on phones than on desktop. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
   color-scheme: dark;
   color: var(--color-text-primary);
   background-color: var(--color-bg-primary);
