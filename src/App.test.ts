@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
@@ -136,5 +136,45 @@ describe('App.vue — config migration on init', () => {
         expect(ent.style.colors).toEqual({ onColor: '#ff0000', offColor: '#00ff00' })
         expect(ent.style.onColor).toBeUndefined()
         expect(ent.style.offColor).toBeUndefined()
+    })
+})
+
+describe('App.vue — logout', () => {
+    let reloadMock: ReturnType<typeof vi.fn>
+    let originalLocation: Location
+    beforeEach(() => {
+        originalLocation = window.location
+        reloadMock = vi.fn()
+        Object.defineProperty(window, 'location', {
+            configurable: true,
+            value: { ...originalLocation, reload: reloadMock },
+        })
+    })
+    afterEach(() => {
+        Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+    })
+
+    it('reloads to the login screen after a successful logout', async () => {
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'X', config: emptyConfig(), states: {}, topics: {} })
+        vi.mocked(api.logout).mockResolvedValueOnce(undefined)
+        const { wrapper } = await mountApp()
+        await flushPromises()
+        await wrapper.find('.logout-link').trigger('click')
+        await flushPromises()
+        expect(reloadMock).toHaveBeenCalledTimes(1)
+    })
+
+    // This asserts the user-facing guarantee (reload always happens). The second
+    // guarantee of onLogout — that the swallowed rejection does NOT surface as an
+    // unhandled promise rejection — is enforced by Vitest's global unhandled-rejection
+    // tripwire: drop the `catch` in onLogout and `vitest run` fails the whole run.
+    it('still reloads when logout() rejects (e.g. a timed-out request)', async () => {
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'X', config: emptyConfig(), states: {}, topics: {} })
+        vi.mocked(api.logout).mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'))
+        const { wrapper } = await mountApp()
+        await flushPromises()
+        await wrapper.find('.logout-link').trigger('click')
+        await flushPromises()
+        expect(reloadMock).toHaveBeenCalledTimes(1)
     })
 })

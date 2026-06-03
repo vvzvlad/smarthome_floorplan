@@ -12,6 +12,7 @@ import {
     deleteIcon,
     publishRaw,
     fetchBootstrap,
+    login,
 } from './api'
 
 // Build a minimal Response-like stub. Only the fields api.ts reads are needed.
@@ -281,5 +282,68 @@ describe('ok/throw consumers (parametrized table)', () => {
     it.each(cases)('$name throws its specific error on non-ok', async (c) => {
         fetchMock.mockResolvedValue(makeResponse({ ok: false, status: 500 }))
         await expect(c.run()).rejects.toThrow(c.errorMsg)
+    })
+})
+
+describe('fetchWithTimeout (request timeout guard)', () => {
+    it('rejects (never hangs) when the request stalls until the timeout aborts it', async () => {
+        vi.useFakeTimers()
+        try {
+            fetchMock.mockImplementation((_url: unknown, init: RequestInit) =>
+                new Promise((_resolve, reject) => {
+                    init.signal!.addEventListener('abort', () =>
+                        reject(new DOMException('The operation was aborted.', 'AbortError')))
+                }))
+            const pending = login('pw')
+            // Attach the rejection expectation BEFORE advancing so there is no
+            // unhandled rejection while timers run. Assert the rejection is the
+            // timeout's AbortError specifically, so the test can't pass on some
+            // unrelated failure occurring before the abort fires.
+            const assertion = expect(pending).rejects.toThrow(/aborted/i)
+            await vi.advanceTimersByTimeAsync(15000)
+            await assertion
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('passes an AbortSignal to the underlying fetch', async () => {
+        fetchMock.mockResolvedValue(makeResponse({ ok: true, json: { auth: true } }))
+        await checkSession()
+        const [, init] = fetchMock.mock.calls[0]
+        expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal)
+    })
+
+    it('clears the timeout on success so a slow follow-up never aborts the resolved request', async () => {
+        vi.useFakeTimers()
+        try {
+            let captured: AbortSignal | undefined
+            fetchMock.mockImplementation((_url: unknown, init: RequestInit) => {
+                captured = init.signal!
+                return Promise.resolve(makeResponse({ ok: true, json: { auth: true } }))
+            })
+            await checkSession()
+            expect(captured!.aborted).toBe(false)
+            await vi.advanceTimersByTimeAsync(60000)
+            expect(captured!.aborted).toBe(false)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('fetchBootstrap returns the safe default when the request times out', async () => {
+        vi.useFakeTimers()
+        try {
+            fetchMock.mockImplementation((_url: unknown, init: RequestInit) =>
+                new Promise((_resolve, reject) => {
+                    init.signal!.addEventListener('abort', () =>
+                        reject(new DOMException('The operation was aborted.', 'AbortError')))
+                }))
+            const pending = fetchBootstrap()
+            await vi.advanceTimersByTimeAsync(15000)
+            await expect(pending).resolves.toEqual({ auth: false, title: 'HA Floorplan' })
+        } finally {
+            vi.useRealTimers()
+        }
     })
 })
