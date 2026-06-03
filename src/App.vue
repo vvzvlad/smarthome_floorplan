@@ -72,8 +72,14 @@ async function onLoginSuccess() {
 }
 
 async function onLogout() {
-    await logout();
-    window.location.reload();
+    // Always return to the login screen, even if logout() rejects — e.g. a request
+    // that timed out via the fetch abort guard. Without this, a failed logout would
+    // strand the user on the app and surface an unhandled promise rejection.
+    try {
+        await logout();
+    } finally {
+        window.location.reload();
+    }
 }
 
 onMounted(async () => {

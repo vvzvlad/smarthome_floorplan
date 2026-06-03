@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import Scope
 
 from .config_store import read_config, write_config
 from .mqtt_client import device_states, mqtt_listener_loop, publish_command, publish_value, topic_values, publish_raw, subscribed_read_topics, publishable_topics
@@ -276,6 +277,41 @@ def delete_icon():
     return JSONResponse(content={"ok": True})
 
 
+class CachedStaticFiles(StaticFiles):
+    """StaticFiles that emits explicit Cache-Control headers.
+
+    Starlette's StaticFiles only sets ETag/Last-Modified, so browsers fall back to
+    *heuristic* freshness (~10% of the file's age) for the app shell. That pins an
+    installed PWA — especially an iOS standalone app, which resumes without a fresh
+    navigation and so rarely runs a service-worker update check — to a stale build.
+
+    Policy:
+      * fingerprinted assets (Vite `assets/*`, hashed `workbox-*.js`) -> cache forever
+        (`immutable`), since a content change always yields a new filename;
+      * everything else (index.html, sw.js, manifest, icons, ...) -> `no-cache`, i.e.
+        the client may store it but MUST revalidate (ETag) before reuse.
+    """
+
+    @staticmethod
+    def _is_fingerprinted(req_path: str, file_path: str) -> bool:
+        p = (file_path or req_path).replace("\\", "/")
+        name = p.rsplit("/", 1)[-1]
+        if "/assets/" in p or req_path.startswith("assets/"):
+            return True
+        # Workbox runtime is emitted with a content hash in its filename.
+        return name.startswith("workbox-") and name.endswith(".js")
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        # For the html=True index fallback `path` is "."; use the real served file.
+        file_path = str(getattr(response, "path", "") or "")
+        if self._is_fingerprinted(path, file_path):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Mount frontend static files last so /api/* routes take priority
 if os.path.isdir(_static_path):
-    app.mount("/", StaticFiles(directory=_static_path, html=True), name="static")
+    app.mount("/", CachedStaticFiles(directory=_static_path, html=True), name="static")

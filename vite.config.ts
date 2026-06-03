@@ -20,7 +20,7 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',          // injects SW registration into index.html; no change to main.ts needed
+      injectRegister: false,           // we register the SW manually via virtual:pwa-register in main.ts
       includeAssets: ['apple-touch-icon-default.png', 'favicon.svg'],
       manifest: {
         name: 'Home Assistant Floor Plan',
