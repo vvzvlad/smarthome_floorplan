@@ -10,6 +10,8 @@ import type { FloorplanConfig } from './types/floorplan';
 
 const store = useFloorplanStore();
 const isAuthenticated = ref(false);
+// Gates LoginForm until the session probe finishes, so it never flashes.
+const authChecked = ref(false);
 const appTitle = ref('HA Floorplan');
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -65,11 +67,17 @@ onMounted(async () => {
     fetchInfo().then(info => { appTitle.value = info.title; }).catch(() => {});
     // Probe the session via /api/session (never 401s) so we avoid the reload loop:
     // the HttpOnly cookie cannot be read by JS, so we ask the server instead.
-    if (await checkSession()) {
-        isAuthenticated.value = true;
-        await initApp();
-    } else {
-        isAuthenticated.value = false;
+    try {
+        if (await checkSession()) {
+            isAuthenticated.value = true;
+            await initApp();
+        } else {
+            isAuthenticated.value = false;
+        }
+    } finally {
+        // Open the gate only after the probe (and any init) settle, so a
+        // logged-in user never sees the login dialog flash on first paint.
+        authChecked.value = true;
     }
 });
 
@@ -79,8 +87,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <LoginForm v-if="!isAuthenticated" @success="onLoginSuccess" />
-  <template v-else>
+  <LoginForm v-if="authChecked && !isAuthenticated" @success="onLoginSuccess" />
+  <template v-else-if="isAuthenticated">
     <header class="app-header glass-panel">
       <div class="logo">{{ appTitle }}</div>
       <nav>
