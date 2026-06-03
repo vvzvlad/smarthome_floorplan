@@ -119,11 +119,15 @@ export async function checkSession(): Promise<boolean> {
 export interface BootstrapData {
     auth: boolean;
     title: string;
+    // Included as a fallback (and for older cached frontend bundles). The current
+    // frontend normally paints from the SW-cached /api/config and only reads this
+    // when that cache misses.
+    config?: object;
     states?: Record<string, Record<string, unknown>>;
     topics?: Record<string, string>;
 }
 
-/** One-shot startup payload (auth + title, plus states/topics when authed).
+/** One-shot startup payload (auth + title, plus config/states/topics when authed).
  *  Public endpoint; never triggers the 401 reload path. */
 export async function fetchBootstrap(): Promise<BootstrapData> {
     try {

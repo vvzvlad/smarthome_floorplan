@@ -95,10 +95,12 @@ def test_bootstrap_authenticated(auth_client):
     body = resp.json()
     assert body["auth"] is True
     assert "title" in body
-    # Authed payload carries only dynamic data: states + topics. The config is now
-    # served separately by /api/config (so the service worker can cache it).
-    assert "config" not in body
+    # Authed payload carries the dynamic data (states + topics) AND a copy of the
+    # config. The config is ALSO served separately by /api/config (so a service worker
+    # can cache it); including it here keeps the payload a backward-compatible superset
+    # so an older cached frontend bundle never breaks on a deploy.
     assert "states" in body and "topics" in body
+    assert body["config"] == cfg
 
 
 def test_login_wrong_password(client):

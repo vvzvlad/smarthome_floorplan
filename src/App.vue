@@ -68,7 +68,9 @@ async function onLoginSuccess() {
         fetchConfigCached().catch(() => null),
     ]);
     appTitle.value = boot.title || 'HA Floorplan';
+    // Prefer the SW-cached config; fall back to the copy bootstrap also carries.
     if (rawConfig) applyConfig(rawConfig);
+    else if (boot.config) applyConfig(boot.config);
     applyStates(boot.states ?? {});
     store.setTopicValues(boot.topics ?? {});
     if (!pollInterval) pollInterval = setInterval(loadStates, 5000);
@@ -114,10 +116,12 @@ onMounted(async () => {
     if (boot.auth) {
         isAuthenticated.value = true;
         if (!rawConfig) {
-            // First authed load with a cold cache: config wasn't ready before bootstrap;
-            // it resolved (or will) via configP — apply it if present.
+            // Cold SW cache (or the cache fetch failed): config wasn't painted yet.
+            // Prefer a late-resolving /api/config, else fall back to the config that
+            // /api/bootstrap also carries, so the floorplan still renders.
             const late = await configP;
             if (late) applyConfig(late);
+            else if (boot.config) applyConfig(boot.config);
         }
         applyStates(boot.states ?? {});
         store.setTopicValues(boot.topics ?? {});

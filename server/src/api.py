@@ -127,12 +127,19 @@ def get_session(request: Request):
 def get_bootstrap(request: Request):
     """Public: one-shot startup payload carrying only the DYNAMIC data. Reports
     auth status and, when authed, bundles device states + read-topic values. The
-    floorplan config is served separately by /api/config so a service worker can
+    floorplan config is ALSO served separately by /api/config so a service worker can
     cache it (StaleWhileRevalidate) and paint repeat loads instantly. Never 401s
-    (like /api/session)."""
+    (like /api/session).
+
+    The config is included here as well, making this payload a backward-compatible
+    superset: a client running an older frontend bundle (e.g. one still cached by a
+    not-yet-updated service worker) reads `config` from here and keeps working, while
+    the current frontend ignores it and paints from the SW-cached /api/config. This
+    way changing the startup wiring can never strand a stale client on a deploy."""
     authed = bool(request.session.get("auth"))
     payload = {"auth": authed, "title": settings.app_title}
     if authed:
+        payload["config"] = read_config()
         payload["states"] = device_states
         payload["topics"] = topic_values
     return JSONResponse(content=payload)
