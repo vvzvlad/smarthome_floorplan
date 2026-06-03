@@ -2,13 +2,36 @@
 
 Self-hosted interactive floorplan for zigbee2mqtt devices. A Vue 3 + Vite PWA
 frontend with a visual editor, served by a Python FastAPI backend that bridges
-MQTT (zigbee2mqtt), persists the floorplan config, and protects everything behind
-a password-based HttpOnly session cookie.
+MQTT (zigbee2mqtt device state plus raw read/write topics), persists the floorplan
+config, and protects everything behind a password-based HttpOnly session cookie.
+
+## Screenshots
+
+**Viewer** — live floorplan: lights, text read-outs, a number stepper, toggles and a
+multi-state (select) switch, all reacting to MQTT.
+
+![Viewer](docs/screenshots/viewer.png)
+
+**Editor** — place and style entities, switch widget types, manage the background
+image and home-screen icon, and import/export the whole config.
+
+![Editor](docs/screenshots/editor.png)
 
 ## Features
-- Visual editor: place device zones/entities on an uploaded floorplan image.
-- Live device state via MQTT (zigbee2mqtt); click to toggle, set brightness, etc.
-- Installable PWA with a custom home-screen icon.
+- Visual editor: place entities on an uploaded floorplan image; set their position,
+  size, rotation, and shape (circle / square / rect / custom polygon for light spread).
+- Widget types, each bound to MQTT:
+  - **Light** — live zigbee2mqtt state; click to toggle or set brightness.
+  - **Text** — show a value pulled from a JSON payload via a path + format string.
+  - **Number** — stepper that reads/writes a raw value over two topics (min/max/step/unit).
+  - **Button** — publish a fixed raw value to a topic on click.
+  - **Toggle** — two-state switch over raw on/off values.
+  - **Select** — multi-state switch (e.g. AC heat / cool / off) over preset options.
+- Import/export: download or upload the whole floorplan config as JSON, and download
+  the current background image.
+- Custom home-screen icon (uploadable PNG, with a bundled default).
+- Installable, offline-capable PWA: the app shell and floorplan config are
+  service-worker cached (stale-while-revalidate) for instant repeat loads.
 - Single password login (HttpOnly session cookie, survives PWA relaunches).
 
 ## Architecture
@@ -46,7 +69,8 @@ make install            # create .venv, install backend dev/test deps
 cp .env.example .env    # set AUTH_PASSWORD, MQTT_HOST, COOKIE_SECURE=false
 make run                # backend API on :8000
 make dev                # Vite dev server (proxies /api to :8000)
-make test               # run backend tests
+make test               # run backend tests (pytest)
+npm run test            # run frontend unit tests (Vitest); npm run test:e2e for Playwright
 ```
 
 ## Deployment
