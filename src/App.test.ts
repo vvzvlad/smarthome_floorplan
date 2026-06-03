@@ -3,14 +3,12 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 
-// Mock the api module App.vue talks to. checkSession gates the whole app.
+// Mock the api module App.vue talks to. fetchBootstrap gates the whole app.
 vi.mock('./utils/api', () => ({
-    checkSession: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
-    fetchConfig: vi.fn(),
     fetchStates: vi.fn().mockResolvedValue({}),
-    fetchInfo: vi.fn(),
     fetchTopicValues: vi.fn().mockResolvedValue({}),
+    fetchBootstrap: vi.fn(),
 }))
 
 import App from './App.vue'
@@ -18,9 +16,7 @@ import * as api from './utils/api'
 import { useFloorplanStore } from './stores/floorplan'
 import type { FloorplanConfig } from './types/floorplan'
 
-const checkSessionMock = vi.mocked(api.checkSession)
-const fetchConfigMock = vi.mocked(api.fetchConfig)
-const fetchInfoMock = vi.mocked(api.fetchInfo)
+const fetchBootstrapMock = vi.mocked(api.fetchBootstrap)
 
 // Minimal config the store can load.
 function emptyConfig(): FloorplanConfig {
@@ -56,25 +52,23 @@ async function mountApp() {
 
 beforeEach(() => {
     vi.clearAllMocks()
-    fetchInfoMock.mockResolvedValue({ title: 'HA Floorplan' })
-    fetchConfigMock.mockResolvedValue(emptyConfig())
+    fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'HA Floorplan', config: emptyConfig(), states: {}, topics: {} })
 })
 
 describe('App.vue — auth gate', () => {
     it('renders LoginForm and no header when the session is not authenticated', async () => {
-        checkSessionMock.mockResolvedValue(false)
-        const { wrapper } = await mountApp()
+        fetchBootstrapMock.mockResolvedValue({ auth: false, title: 'HA Floorplan' })
+        const { wrapper, store } = await mountApp()
         await flushPromises()
 
         expect(wrapper.find('.login-overlay').exists()).toBe(true)
         expect(wrapper.find('header.app-header').exists()).toBe(false)
-        // Init must NOT have run on the unauthenticated branch.
-        expect(fetchConfigMock).not.toHaveBeenCalled()
+        // Init must NOT have run on the unauthenticated branch: config untouched.
+        expect(store.config.name).not.toBe('Test')
     })
 
     it('renders the header + RouterView (no LoginForm) when authenticated, and loads config', async () => {
-        checkSessionMock.mockResolvedValue(true)
-        fetchInfoMock.mockResolvedValue({ title: 'My House' })
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'My House', config: emptyConfig(), states: {}, topics: {} })
         const { wrapper, store } = await mountApp()
         await flushPromises()
 
@@ -82,31 +76,28 @@ describe('App.vue — auth gate', () => {
         const header = wrapper.find('header.app-header')
         expect(header.exists()).toBe(true)
         expect(wrapper.find('.login-overlay').exists()).toBe(false)
-        // appTitle reflects fetchInfo.
+        // appTitle reflects the bootstrap title.
         expect(header.find('.logo').text()).toBe('My House')
         // Viewer route rendered through RouterView.
         expect(wrapper.find('.stub-viewer').exists()).toBe(true)
-        // Init ran: config fetched and loaded into the store.
-        expect(fetchConfigMock).toHaveBeenCalledTimes(1)
+        // Init ran: config from bootstrap loaded into the store.
         expect(store.config.name).toBe('Test')
     })
 
-    it('falls back to the default title and does not crash when fetchInfo rejects', async () => {
-        checkSessionMock.mockResolvedValue(true)
-        fetchInfoMock.mockRejectedValue(new Error('info down'))
+    it('falls back to the default title when the bootstrap title is missing', async () => {
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: '', config: emptyConfig(), states: {}, topics: {} })
         const { wrapper } = await mountApp()
         await flushPromises()
 
         const header = wrapper.find('header.app-header')
         expect(header.exists()).toBe(true)
-        // Title stays at the component default.
+        // Title falls back to the component default.
         expect(header.find('.logo').text()).toBe('HA Floorplan')
     })
 })
 
 describe('App.vue — config migration on init', () => {
     it('migrates an old-format config (style.onColor) before loading it into the store', async () => {
-        checkSessionMock.mockResolvedValue(true)
         // Old shape: top-level onColor/offColor, no `colors` object -> needs migration.
         const oldConfig = {
             id: 'c1',
@@ -135,7 +126,7 @@ describe('App.vue — config migration on init', () => {
                 },
             ],
         }
-        fetchConfigMock.mockResolvedValue(oldConfig)
+        fetchBootstrapMock.mockResolvedValue({ auth: true, title: 'Old', config: oldConfig, states: {}, topics: {} })
 
         const { store } = await mountApp()
         await flushPromises()

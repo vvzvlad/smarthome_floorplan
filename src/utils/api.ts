@@ -83,6 +83,26 @@ export async function checkSession(): Promise<boolean> {
     }
 }
 
+export interface BootstrapData {
+    auth: boolean;
+    title: string;
+    config?: object;
+    states?: Record<string, Record<string, unknown>>;
+    topics?: Record<string, string>;
+}
+
+/** One-shot startup payload (auth + title, plus config/states/topics when authed).
+ *  Public endpoint; never triggers the 401 reload path. */
+export async function fetchBootstrap(): Promise<BootstrapData> {
+    try {
+        const res = await fetch('/api/bootstrap', { credentials: 'same-origin' });
+        if (!res.ok) return { auth: false, title: 'HA Floorplan' };
+        return await res.json();
+    } catch {
+        return { auth: false, title: 'HA Floorplan' };
+    }
+}
+
 export async function fetchDevices(): Promise<string[]> {
     const res = await apiFetch('/api/devices');
     if (!res.ok) throw new Error('Failed to fetch devices');

@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { checkSession, logout, fetchConfig, fetchStates, fetchInfo, fetchTopicValues } from './utils/api';
+import { logout, fetchStates, fetchTopicValues, fetchBootstrap } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import { normalizeEntityState } from './utils/entityState';
 import type { FloorplanConfig } from './types/floorplan';
@@ -15,28 +15,12 @@ const authChecked = ref(false);
 const appTitle = ref('HA Floorplan');
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-async function loadStates() {
+// Apply a raw config payload to the store, replicating the prior init handling:
+// strip whitespace from any image base64, migrate legacy shapes, then load.
+function applyConfig(rawConfig: object) {
     try {
-        const states = await fetchStates();
-        for (const [friendlyName, payload] of Object.entries(states)) {
-            const stateStr = normalizeEntityState(payload);
-            store.setEntityState(friendlyName, stateStr, payload);
-        }
-    } catch (e) {
-        console.error('Failed to load states', e);
-    }
-    try {
-        const topics = await fetchTopicValues();
-        store.setTopicValues(topics);
-    } catch (e) {
-        console.error('Failed to load topic values', e);
-    }
-}
-
-async function initApp() {
-    try {
-        let config = await fetchConfig() as any;
-        if (config.imageBase64) {
+        let config = rawConfig as any;
+        if (typeof config.imageBase64 === 'string' && config.imageBase64) {
             config.imageBase64 = config.imageBase64.replace(/\s/g, '');
         }
         if (needsMigration(config)) {
@@ -46,16 +30,45 @@ async function initApp() {
     } catch (e) {
         console.error('Failed to load config from server', e);
     }
+}
 
-    await loadStates();
+// Push a states map into the store, normalizing each payload to a display state.
+function applyStates(states: Record<string, Record<string, unknown>>) {
+    for (const [friendlyName, payload] of Object.entries(states)) {
+        const stateStr = normalizeEntityState(payload);
+        store.setEntityState(friendlyName, stateStr, payload);
+    }
+}
 
-    // Poll device states every 5 seconds
-    pollInterval = setInterval(loadStates, 5000);
+async function loadStates() {
+    // The two reads are independent — fetch them in parallel so polling latency
+    // is one round-trip, not two. Apply each only if it resolved.
+    const [statesResult, topicsResult] = await Promise.allSettled([
+        fetchStates(),
+        fetchTopicValues(),
+    ]);
+    if (statesResult.status === 'fulfilled') {
+        applyStates(statesResult.value);
+    } else {
+        console.error('Failed to load states', statesResult.reason);
+    }
+    if (topicsResult.status === 'fulfilled') {
+        store.setTopicValues(topicsResult.value);
+    } else {
+        console.error('Failed to load topic values', topicsResult.reason);
+    }
 }
 
 async function onLoginSuccess() {
     isAuthenticated.value = true;
-    await initApp();
+    // The login set the session cookie; re-fetch the bootstrap payload to populate
+    // the app without an extra round of serial requests.
+    const boot = await fetchBootstrap();
+    appTitle.value = boot.title || 'HA Floorplan';
+    if (boot.config) applyConfig(boot.config);
+    applyStates(boot.states ?? {});
+    store.setTopicValues(boot.topics ?? {});
+    if (!pollInterval) pollInterval = setInterval(loadStates, 5000);
 }
 
 async function onLogout() {
@@ -64,19 +77,26 @@ async function onLogout() {
 }
 
 onMounted(async () => {
-    fetchInfo().then(info => { appTitle.value = info.title; }).catch(() => {});
-    // Probe the session via /api/session (never 401s) so we avoid the reload loop:
-    // the HttpOnly cookie cannot be read by JS, so we ask the server instead.
+    // Single combined startup request: reports auth and, when authed, bundles
+    // config + states + topics, replacing four serial round-trips.
+    const boot = await fetchBootstrap();
+    appTitle.value = boot.title || 'HA Floorplan';
     try {
-        if (await checkSession()) {
+        if (boot.auth && boot.config) {
             isAuthenticated.value = true;
-            await initApp();
+            // Order matters: loadConfig() resets entityStates and setTopicValues
+            // reconciles against the loaded config, so config must be applied first.
+            applyConfig(boot.config);
+            applyStates(boot.states ?? {});
+            store.setTopicValues(boot.topics ?? {});
+            // Poll device states every 5 seconds.
+            pollInterval = setInterval(loadStates, 5000);
         } else {
             isAuthenticated.value = false;
         }
     } finally {
-        // Open the gate only after the probe (and any init) settle, so a
-        // logged-in user never sees the login dialog flash on first paint.
+        // Open the gate only after startup settles, so a logged-in user never
+        // sees the login dialog flash on first paint.
         authChecked.value = true;
     }
 });

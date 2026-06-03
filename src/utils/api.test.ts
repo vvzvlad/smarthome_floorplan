@@ -11,6 +11,7 @@ import {
     uploadIcon,
     deleteIcon,
     publishRaw,
+    fetchBootstrap,
 } from './api'
 
 // Build a minimal Response-like stub. Only the fields api.ts reads are needed.
@@ -102,6 +103,30 @@ describe('checkSession', () => {
         fetchMock.mockResolvedValue(makeResponse({ ok: false, status: 401 }))
         await checkSession()
         expect(reloadMock).not.toHaveBeenCalled()
+    })
+})
+
+describe('fetchBootstrap', () => {
+    it('returns the parsed body on ok and never reloads', async () => {
+        const body = { auth: true, title: 'My House', config: { id: 'a' }, states: {}, topics: {} }
+        fetchMock.mockResolvedValue(makeResponse({ ok: true, json: body }))
+        const result = await fetchBootstrap()
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/api/bootstrap')
+        expect((init as RequestInit).credentials).toBe('same-origin')
+        expect(result).toEqual(body)
+        expect(reloadMock).not.toHaveBeenCalled()
+    })
+
+    it('returns a safe unauthenticated default on a non-ok response (no reload)', async () => {
+        fetchMock.mockResolvedValue(makeResponse({ ok: false, status: 401 }))
+        expect(await fetchBootstrap()).toEqual({ auth: false, title: 'HA Floorplan' })
+        expect(reloadMock).not.toHaveBeenCalled()
+    })
+
+    it('returns a safe default when fetch throws', async () => {
+        fetchMock.mockRejectedValue(new TypeError('network down'))
+        expect(await fetchBootstrap()).toEqual({ auth: false, title: 'HA Floorplan' })
     })
 })
 

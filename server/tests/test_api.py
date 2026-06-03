@@ -75,6 +75,31 @@ def test_config_requires_auth(client):
     assert client.get("/api/config").status_code == 401
 
 
+def test_bootstrap_unauthenticated(client):
+    resp = client.get("/api/bootstrap")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["auth"] is False
+    assert "title" in body
+    # No private payload leaks to an unauthenticated caller.
+    assert "config" not in body
+    assert "states" not in body
+    assert "topics" not in body
+
+
+def test_bootstrap_authenticated(auth_client):
+    cfg = _number_config()
+    assert auth_client.post("/api/config", json=cfg).status_code == 200
+    resp = auth_client.get("/api/bootstrap")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["auth"] is True
+    assert "title" in body
+    # Authed payload bundles config + states + topics.
+    assert "config" in body and "states" in body and "topics" in body
+    assert body["config"] == cfg
+
+
 def test_login_wrong_password(client):
     assert client.post("/api/login", json={"password": "nope"}).status_code == 401
 

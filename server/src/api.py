@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config_store import read_config, write_config
@@ -72,6 +73,13 @@ app.add_middleware(
     https_only=settings.cookie_secure,
 )
 
+# Compress responses. A reverse proxy/CDN may already do this at the edge, but the
+# app must not depend on it: with no CDN the otherwise ~46 KB bootstrap/config JSON
+# would travel uncompressed. Added after SessionMiddleware so it sits outermost and
+# compresses the final body; it skips bodies under minimum_size and honors
+# Accept-Encoding, so clients without gzip support still get plain responses.
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
 
 @app.get("/api/info")
 def get_info():
@@ -112,6 +120,20 @@ def get_session(request: Request):
     the 401 path (which would reload-loop, since the HttpOnly cookie is invisible to JS).
     """
     return JSONResponse(content={"auth": bool(request.session.get("auth"))})
+
+
+@app.get("/api/bootstrap")
+def get_bootstrap(request: Request):
+    """Public: one-shot startup payload. Reports auth status and, when authed,
+    bundles config + device states + read-topic values so the frontend needs a
+    single round-trip instead of four serial ones. Never 401s (like /api/session)."""
+    authed = bool(request.session.get("auth"))
+    payload = {"auth": authed, "title": settings.app_title}
+    if authed:
+        payload["config"] = read_config()
+        payload["states"] = device_states
+        payload["topics"] = topic_values
+    return JSONResponse(content=payload)
 
 
 @app.get("/api/config", dependencies=[Depends(verify_auth)])
