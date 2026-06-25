@@ -23,10 +23,14 @@ export interface LabelConfig {
   color: string;
 }
 
+export type TextSource = 'state' | 'topic';
+
 export interface TextConfig {
-  jsonPath: string;   // e.g. "temperature" or "sensors.co2"
-  format: string;     // e.g. "Temp: {} °C"
-  size: number;         // base font size in cqw; scales the text pill
+  source: TextSource;  // 'state' = JSON field of a z2m device (jsonPath); 'topic' = raw value of an MQTT topic (readTopic)
+  jsonPath: string;    // used when source === 'state', e.g. "temperature" or "sensors.co2"
+  readTopic: string;   // used when source === 'topic'; raw (non-JSON) MQTT topic, e.g. "home/kiln/temp"
+  format: string;      // e.g. "Temp: {} °C"
+  size: number;        // base font size in cqw; scales the text pill
 }
 
 export interface NumberConfig {

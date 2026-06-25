@@ -31,7 +31,7 @@ export function parseNumberField(raw: string): number | null {
  * onTypeChange literal.
  */
 export function defaultTextConfig(): TextConfig {
-  return { jsonPath: 'temperature', format: '{}', size: 1.8 };
+  return { source: 'state', jsonPath: 'temperature', readTopic: '', format: '{}', size: 1.8 };
 }
 
 /**

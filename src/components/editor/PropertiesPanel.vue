@@ -228,6 +228,18 @@ function setTextFormat(e: Event) {
     }
 }
 
+function setTextSource(e: Event) {
+    if (selectedEntity.value?.textConfig) {
+        selectedEntity.value.textConfig.source = (e.target as HTMLSelectElement).value as 'state' | 'topic';
+    }
+}
+
+function setTextReadTopic(e: Event) {
+    if (selectedEntity.value?.textConfig) {
+        selectedEntity.value.textConfig.readTopic = (e.target as HTMLInputElement).value;
+    }
+}
+
 function setTextNum(key: 'size', e: Event) {
     if (selectedEntity.value?.textConfig) {
         const n = parseNumberField((e.target as HTMLInputElement).value);
@@ -402,11 +414,25 @@ function removeSelectOption(index: number) {
                     <template v-if="selectedEntity.type === 'text'">
                         <div class="section-title">Text Data</div>
                         <div class="input-group">
+                            <label>Source</label>
+                            <select :value="selectedEntity.textConfig?.source ?? 'state'" @change="setTextSource">
+                                <option value="state">Device state (JSON)</option>
+                                <option value="topic">MQTT topic (raw)</option>
+                            </select>
+                        </div>
+                        <div class="input-group" v-if="(selectedEntity.textConfig?.source ?? 'state') === 'state'">
                             <label>JSON Path</label>
                             <input type="text"
                                 :value="selectedEntity.textConfig?.jsonPath ?? ''"
                                 @input="setTextJsonPath"
                                 placeholder="e.g. temperature">
+                        </div>
+                        <div class="input-group" v-else>
+                            <label>Read Topic</label>
+                            <input type="text"
+                                :value="selectedEntity.textConfig?.readTopic ?? ''"
+                                @input="setTextReadTopic"
+                                placeholder="e.g. home/kiln/temp">
                         </div>
                         <div class="input-group">
                             <label>Format</label>
@@ -419,7 +445,7 @@ function removeSelectOption(index: number) {
                             <label>Size</label>
                             <input type="number" :value="selectedEntity.textConfig?.size ?? 1.8" step="0.1" min="0.5" @input="setTextNum('size', $event)">
                         </div>
-                        <p class="hint small">Use <code>{}</code> as placeholder for the value.</p>
+                        <p class="hint small">Use <code>{}</code> as placeholder for the value. Raw topic mode shows the MQTT payload as-is (no JSON parsing).</p>
                     </template>
 
                     <!-- Number entity config -->

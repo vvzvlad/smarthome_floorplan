@@ -12,3 +12,13 @@ export function formatTextValue(format: string, rawPayload: Record<string, unkno
     const value = extractJsonPath(rawPayload, jsonPath);
     return format.replace('{}', value != null ? String(value) : '—');
 }
+
+/**
+ * Format the raw (non-JSON) value of an MQTT topic for a text widget in 'topic'
+ * source mode. Substitutes the raw string into the format's "{}" placeholder; a
+ * missing value (topic not seen yet) becomes the em-dash placeholder. An empty
+ * string is substituted verbatim, mirroring formatTextValue's `!= null` policy.
+ */
+export function formatRawTopicValue(format: string, rawValue: string | undefined): string {
+    return format.replace('{}', rawValue != null ? rawValue : '—');
+}

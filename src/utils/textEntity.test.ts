@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
-import { extractJsonPath, formatTextValue } from './textEntity'
+import { extractJsonPath, formatTextValue, formatRawTopicValue } from './textEntity'
 
 describe('extractJsonPath', () => {
     it('resolves a nested hit "a.b.c"', () => {
@@ -82,6 +82,29 @@ describe('formatTextValue', () => {
     it('format without "{}" is returned unchanged (replace is a no-op)', () => {
         expect(formatTextValue('static text', { v: 1 }, 'v')).toBe('static text')
         expect(formatTextValue('static text', undefined, 'v')).toBe('static text')
+    })
+})
+
+describe('formatRawTopicValue', () => {
+    it('substitutes a raw string into "{}"', () => {
+        expect(formatRawTopicValue('{} °C', '23.9')).toBe('23.9 °C')
+    })
+
+    it('undefined (topic not seen yet) -> placeholder dash', () => {
+        expect(formatRawTopicValue('{} °C', undefined)).toBe('— °C')
+    })
+
+    it('the string "0" is kept (not a dash)', () => {
+        expect(formatRawTopicValue('{}', '0')).toBe('0')
+    })
+
+    it('empty string is substituted verbatim', () => {
+        expect(formatRawTopicValue('[{}]', '')).toBe('[]')
+    })
+
+    it('format without "{}" is returned unchanged', () => {
+        expect(formatRawTopicValue('static text', '23.9')).toBe('static text')
+        expect(formatRawTopicValue('static text', undefined)).toBe('static text')
     })
 })
 

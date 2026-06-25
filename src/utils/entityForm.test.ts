@@ -48,7 +48,7 @@ describe('parseNumberField', () => {
 
 describe('defaultTextConfig', () => {
   it('matches the contract literal', () => {
-    expect(defaultTextConfig()).toEqual({ jsonPath: 'temperature', format: '{}', size: 1.8 })
+    expect(defaultTextConfig()).toEqual({ source: 'state', jsonPath: 'temperature', readTopic: '', format: '{}', size: 1.8 })
   })
 })
 

@@ -78,7 +78,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             },
             ...(type === 'text' ? {
                 textConfig: {
+                    source: 'state',
                     jsonPath: 'temperature',
+                    readTopic: '',
                     format: '{}',
                     size: 1.8
                 }

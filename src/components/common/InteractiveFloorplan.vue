@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
 import { computed, ref, useTemplateRef } from 'vue';
-import { formatTextValue } from '../../utils/textEntity';
+import { formatTextValue, formatRawTopicValue } from '../../utils/textEntity';
 import {
   resolveNumberValue,
   computeNextStep,
@@ -147,9 +147,12 @@ function getPointsString(points: { x: number, y: number }[]) {
 }
 
 function getTextValue(entity: EntityConfig): string {
-    if (!entity.textConfig) return '';
-    const { jsonPath, format } = entity.textConfig;
-    return formatTextValue(format, props.entityStates[entity.entityId]?.rawPayload, jsonPath);
+    const cfg = entity.textConfig;
+    if (!cfg) return '';
+    if ((cfg.source ?? 'state') === 'topic') {
+        return formatRawTopicValue(cfg.format, props.topicValues[cfg.readTopic ?? '']);
+    }
+    return formatTextValue(cfg.format, props.entityStates[entity.entityId]?.rawPayload, cfg.jsonPath);
 }
 
 function getTextPositionStyle(entity: EntityConfig) {

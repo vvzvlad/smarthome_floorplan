@@ -459,7 +459,7 @@ describe('addEntity', () => {
         const store = useFloorplanStore()
         store.addEntity('text')
         const e = store.config.entities[0]
-        expect(e.textConfig).toEqual({ jsonPath: 'temperature', format: '{}', size: 1.8 })
+        expect(e.textConfig).toEqual({ source: 'state', jsonPath: 'temperature', readTopic: '', format: '{}', size: 1.8 })
         expect(e.numberConfig).toBeUndefined()
     })
 

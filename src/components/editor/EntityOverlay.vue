@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import type { EntityConfig } from '../../types/floorplan';
 import { useFloorplanStore } from '../../stores/floorplan';
-import { formatTextValue } from '../../utils/textEntity';
+import { formatTextValue, formatRawTopicValue } from '../../utils/textEntity';
 import { dragDeltaPercent } from '../../utils/coords';
 import { resolveNumberValue, formatNumberDisplay } from '../../utils/numberWidget';
 import { formatButtonLabel } from '../../utils/buttonWidget';
@@ -219,8 +219,11 @@ const labelStyle = computed(() => labelTransform(props.entity.labelConfig));
 
 const textValue = computed(() => {
   if (props.entity.type !== 'text' || !props.entity.textConfig) return '';
-  const { jsonPath, format } = props.entity.textConfig;
-  return formatTextValue(format, store.entityStates[props.entity.entityId]?.rawPayload, jsonPath);
+  const cfg = props.entity.textConfig;
+  if ((cfg.source ?? 'state') === 'topic') {
+    return formatRawTopicValue(cfg.format, store.topicValues[cfg.readTopic ?? '']);
+  }
+  return formatTextValue(cfg.format, store.entityStates[props.entity.entityId]?.rawPayload, cfg.jsonPath);
 });
 const textSize = computed(() => `${props.entity.textConfig?.size ?? 1.8}cqw`);
 

@@ -175,9 +175,24 @@ def select_write_topics(config: dict) -> set:
     return topics
 
 
+def text_read_topics(config: dict) -> set:
+    """Collect non-empty readTopics of text widgets configured to read a raw
+    (non-JSON) MQTT topic value (textConfig.source == 'topic')."""
+    topics = set()
+    for e in config.get("entities", []) or []:
+        if e.get("type") == "text":
+            cfg = e.get("textConfig") or {}
+            if cfg.get("source") != "topic":
+                continue
+            rt = cfg.get("readTopic")
+            if isinstance(rt, str) and rt.strip():
+                topics.add(rt)
+    return topics
+
+
 def subscribed_read_topics(config: dict) -> set:
-    """All MQTT read topics the listener must subscribe to (number + toggle + select widgets)."""
-    return number_read_topics(config) | toggle_read_topics(config) | select_read_topics(config)
+    """All MQTT read topics the listener must subscribe to (number + toggle + select + text widgets)."""
+    return number_read_topics(config) | toggle_read_topics(config) | select_read_topics(config) | text_read_topics(config)
 
 
 def publishable_topics(config: dict) -> set:
