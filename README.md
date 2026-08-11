@@ -74,6 +74,17 @@ npm run test            # run frontend unit tests (Vitest); npm run test:e2e for
 ```
 
 ## Deployment
-Built and published to `ghcr.io` by GitHub Actions (`test` → `build`/push). On the
-host, pull the image via docker-compose; `watchtower` auto-updates it. See
-`docker-compose.yml` for a sample (Traefik labels, `/app/data` volume, healthcheck).
+Built and published to `gitea.vvzvlad.xyz/projects/smarthome_floorplan` by Gitea Actions
+(`.gitea/workflows/`). Pushes to `main` run the backend and frontend test suites, build the
+image, put it through the smoke gate in `ci/smoke.py`, and only then push `:<sha>` followed by
+`:latest`; pull requests run exactly the same steps but never log in and never push. The gate
+starts the built image and checks it end to end — the required-variable guard, `/api/info`,
+401s on every authenticated route, the login chain, and that the built frontend is served —
+so nothing reaches `:latest` untested. See `.gitea/workflows/image-check-publish.yml`.
+
+On the host the image is deployed as a Portainer stack, which polls `:latest` and redeploys
+on a new digest (the `io.portainer.update.enable` label). `docker-compose.yml` in this repo is
+a **record of that deployment** rather than a generic example: container name, volume, Traefik
+labels and the absence of a healthcheck all mirror what is running, and the environment values
+are placeholders — the real ones live in the stack. Its header comment lists the few places it
+deliberately differs.

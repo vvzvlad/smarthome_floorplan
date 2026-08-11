@@ -1,5 +1,13 @@
 .git
+# CI lives outside the image. Stage one is `COPY . .`, so without these the workflows and the
+# smoke gate would land in the build context: they would be baked into the frontend stage, and
+# — worse — editing a workflow or ci/smoke.py would invalidate that COPY layer and force a full
+# `npm ci` + `vite build` rebuild for a change no build input depends on.
+# `.github/` is kept alongside `.gitea/` although it is empty today: a mirror or a lint workflow
+# reappearing there should not quietly become a build input again.
 .github/
+.gitea/
+ci/
 .claude/
 .venv/
 venv/

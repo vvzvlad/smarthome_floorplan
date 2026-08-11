@@ -1,20 +1,15 @@
 name: Docker Image CI
 
 # No `pull_request` trigger here on purpose. This workflow pushes :latest to the Gitea
-# registry, and :latest is the tag production follows — the `smarthome_floorplan` container in
-# the stack of the same name (Portainer id 189) on asakusa-infra (10.31.50.139) carries
-# `com.centurylinklabs.watchtower.enable=true`, which Portainer's own image updater acts on, so
-# whatever lands on :latest is what gets rolled out. A build off a PR branch must never be able
-# to move that tag. PRs are covered by tests.yml, which runs the identical tests, builds the
-# identical image and runs the identical gate, but never logs in and never pushes.
+# registry, and :latest is the tag production follows: the deployed container carries
+# `io.portainer.update.enable=true` (see docker-compose.yml), so Portainer's own image updater
+# polls that tag and redeploys whatever lands on it. A build off a PR branch must never be able
+# to move it. PRs are covered by tests.yml, which runs the identical tests, builds the identical
+# image and runs the identical gate, but never logs in and never pushes.
 #
-# That the label carries watchtower's name and is nonetheless read by PORTAINER is not a
-# mistake to be tidied up, so here is the history that makes it correct: watchtower was retired
-# on 10.08.2026 and removed from the docker hosts, and the fleet moved to the native
-# `ContainerAutomation.AutoUpdate` in the Portainer fork. That updater understands both label
-# families — its own `io.portainer.update.enable` and watchtower's
-# `com.centurylinklabs.watchtower.enable` — which is why the fleet did not have to be
-# re-labelled and why the one in docker-compose.yml still means what it says.
+# That is also what makes the gate below load-bearing rather than decorative: nobody presses a
+# button between `docker push` and the rollout, so the smoke test is the last point at which a
+# broken image can still be stopped.
 #
 # The workflow this replaces — .github/workflows/ghcr-check-publish.yml, pushing
 # `ghcr.io/vvzvlad/smarthome_floorplan` — got four things wrong, and they are worth naming
@@ -29,7 +24,7 @@ name: Docker Image CI
 #     running a commit whose immutable twin — the only rollback point — never reached the
 #     registry;
 #   * it logged in to the registry BEFORE building, i.e. before running arbitrary RUN
-#     instructions on a runner that mounts the host's docker socket;
+#     instructions on a self-hosted runner shared with every other repository;
 #   * it ran on `pull_request` as well as push. The push step did carry
 #     `if: github.event_name != 'pull_request'`, so a PR did not publish — but it still logged
 #     in to the registry with a PR's credentials and still built, and a guard written as an
@@ -203,12 +198,12 @@ jobs:
       # ref, so the else branch still has to be correct.
       # Do NOT hardcode a fixed tag in the else branch: a build off a side branch would then
       # silently overwrite the tag production deploys from — one typo away from shipping
-      # unreviewed code into the stack on asakusa-infra.
+      # unreviewed code straight into the running service.
       env:
         # Passed through the environment instead of being interpolated into the script text:
         # git allows `$`, backticks, quotes and parentheses in branch names, so a branch like
-        # `feat/$(id)` would otherwise execute on the runner, which is self-hosted and mounts
-        # the host's docker socket.
+        # `feat/$(id)` would otherwise execute on the runner, which is self-hosted and shared
+        # with every other repository on the instance.
         REF_NAME: ${{ github.ref_name }}
         REPO: ${{ github.repository }}
         SHA: ${{ github.sha }}
@@ -290,29 +285,40 @@ jobs:
       # this replaces had nothing in this position at all — its tests ran against a checkout in
       # a different job, and the image was pushed by the step after the one that built it.
       #
-      # ci/smoke.py runs on the RUNNER and drives `docker run` itself, rather than being piped
-      # into a container: several of its checks are about the container as a whole — how the
-      # image behaves with no environment, what `docker inspect` says its CMD and WORKDIR are,
-      # which host port got published, and whether the container is still alive at the end —
-      # and none of those can be answered from a process already running inside it. `python3`
-      # is present in the runner's job image `docker.gitea.com/runner-images:ubuntu-latest`;
-      # note that a bare `python` is NOT, which is why the command below spells out python3.
+      # ci/smoke.py is split in two, and the split is worth knowing before editing either half.
+      # It runs on the RUNNER and drives `docker` itself, because several of its checks are
+      # about the container as an object — how the image behaves with no environment, what
+      # `docker inspect` says its CMD and WORKDIR are, whether the container is still alive at
+      # the end, and what it wrote to its log — and none of those can be answered from a process
+      # already running inside it. Everything that speaks HTTP lives in a probe it feeds to
+      # `docker exec -i <name> python -u -`, so those requests are made from INSIDE the
+      # container, against 127.0.0.1:8000 where uvicorn actually listens.
+      #
+      # NO PORT IS PUBLISHED, and that is not an omission. This job runs inside act_runner's own
+      # job container while `docker` drives a daemon outside it, so a published port lands in
+      # that daemon's network namespace and is not reachable from here — the first version of
+      # this gate did publish one, and every HTTP check came back `Connection refused` against a
+      # container that was up and serving. It is the same reasoning that makes the test jobs
+      # above stream the workspace in over stdin instead of bind-mounting it.
+      #
+      # `python3` is present in the runner's job image `docker.gitea.com/runner-images:
+      # ubuntu-latest`; note that a bare `python` is NOT, which is why the command below spells
+      # out python3. Inside the container it is the other way round — the image's own
+      # interpreter is `python` — and ci/smoke.py invokes it accordingly.
       #
       # The gate holds no credential and reaches no external service: it invents its own
       # AUTH_PASSWORD, points MQTT_HOST at a `.invalid` name that RFC 2606 guarantees can never
-      # resolve, and publishes the container's port on 127.0.0.1 only. Its central premise is
-      # that the app survives an unreachable broker — `mqtt_listener_loop()` is a background
-      # task with a reconnect loop — and ci/smoke.py checks that premise explicitly rather than
-      # assuming it, so the day it stops being true the failure says so in one line.
-      #
-      # The host port is chosen by the daemon (`-p 127.0.0.1::8000`), not fixed here, so two
-      # runs of this gate on the shared daemon cannot collide on a port. Both containers it
-      # starts carry $SMOKE_NAME, so anything left behind is removable by name.
+      # resolve, and exposes nothing to anything. Its central premise is that the app survives
+      # an unreachable broker — `mqtt_listener_loop()` is a background task with a reconnect
+      # loop — and ci/smoke.py checks that premise explicitly rather than assuming it, so the
+      # day it stops being true the failure says so in one line. Both containers it starts carry
+      # $SMOKE_NAME, so concurrent runs on the shared daemon cannot collide and anything left
+      # behind is removable by name.
       #
       # Step-level `timeout-minutes`, the one act_runner is known to enforce (the job-level one
       # is only the outer bound). 12 minutes is set against ci/smoke.py's OWN worst case, which
-      # the script documents and sums from its individual bounds: 585 s — a little under 10
-      # minutes — if every docker call and every HTTP request it makes runs out its budget. In
+      # the script documents and sums from its individual bounds: 615 s — a little over 10
+      # minutes — if every docker call it makes runs out its budget, the probe included. In
       # practice the whole gate is well under a minute. Being killed BY this timeout is what
       # the margin is for: the script's own container cleanup would not run, and the
       # `if: always()` step below is what catches that.
@@ -333,16 +339,16 @@ jobs:
       # Deliberately placed here and not at the top of the job: `docker build` runs arbitrary
       # RUN instructions from the Dockerfile — including an `npm ci` that executes whatever
       # install scripts the dependency tree carries — and the smoke step runs the image's own
-      # code, both on a runner whose docker.sock is the host's. Logging in only now keeps the
-      # registry credentials out of the job's docker config for the whole build-and-test
-      # stretch, which is precisely what the GHCR workflow this replaces did not do.
+      # code, both on a self-hosted runner shared with every other repository. Logging in only
+      # now keeps the registry credentials out of the job's docker config for the whole
+      # build-and-test stretch, which is precisely what the GHCR workflow this replaces did not
+      # do.
       uses: docker/login-action@v4
       with:
         registry: gitea.vvzvlad.xyz
         username: ${{ github.repository_owner }}
-        # PAT with the `write:package` scope, stored as an organisation secret on `projects`
-        # and inherited here — do not add a repo-level secret of the same name, it would shadow
-        # the org one. The built-in GITEA_TOKEN cannot be used: it carries no package scope.
+        # A PAT carrying the `write:package` scope, provided to this repository as a secret. The
+        # built-in GITEA_TOKEN cannot be used in its place: it carries no package scope at all.
         password: ${{ secrets.REGISTRY_TOKEN }}
 
     - name: Push Docker images

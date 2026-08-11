@@ -3,10 +3,9 @@ name: Tests
 # PR gate. This workflow deliberately never logs in to the registry and never pushes, and not
 # one `secrets` expression appears anywhere in this file — the word shows up only in prose like
 # this line, never as a value, so there is nothing here for a leak to leak. It runs the same
-# 198 backend tests and the same vitest suite as image-check-publish.yml, builds the same
-# image, and runs the same ci/smoke.py against it — while :latest, the tag the
-# `smarthome_floorplan` container in the stack of the same name (Portainer id 189) on
-# asakusa-infra follows, stays untouched by PR branches.
+# 198 backend tests and the same vitest suite as image-check-publish.yml, builds the same image,
+# and runs the same ci/smoke.py against it — while :latest, the tag production follows, stays
+# untouched by PR branches.
 #
 # The GHCR workflow this replaces triggered on `pull_request` too, and its build job logged in
 # to the registry before building on that trigger as well. It did not publish from a PR — the
@@ -18,12 +17,12 @@ on:
   # pushing an empty commit to the PR branch. Safe to expose here — this workflow touches no
   # registry and no secrets, it only tests, builds and smoke-tests.
   workflow_dispatch:
-  # A pull request runs its own head on a self-hosted runner that mounts the host's docker
-  # socket, so in general `pull_request` means "execute a contributor's code as root on a
-  # machine the whole fleet shares". What takes the edge off it here is who can open one:
-  # self-registration on gitea.vvzvlad.xyz is disabled, so there is no way for an outsider to
-  # get an account, hence no fork and no PR from one. Every PR this trigger can ever fire on
-  # comes from a branch somebody already trusted with push access.
+  # A pull request builds and runs its own head on a self-hosted runner shared with every other
+  # repository on the instance, so `pull_request` means "execute the code in that branch on a
+  # machine other people's jobs are also using". This repository is public, so a fork and a PR
+  # from it are open to anyone holding an account on the instance — "an outsider cannot sign
+  # up" is NOT the same statement as "only people trusted with this repository can trigger
+  # this", and it should not be relied on as though it were.
   # A same-repo guard on `github.event.pull_request.head.repo.full_name` is the textbook fix
   # and is deliberately NOT written here: that expression is unverified on Gitea, and an `if:`
   # that silently evaluates to false turns this gate into one that never runs and always looks
@@ -209,28 +208,38 @@ jobs:
       # push. Keeping it in one file is the point: two copies of ci/smoke.py would drift, and
       # the PR gate would stop matching the gate that guards production.
       #
-      # ci/smoke.py runs on the RUNNER and drives `docker run` itself, rather than being piped
-      # into a container: several of its checks are about the container as a whole — how the
-      # image behaves with no environment, what `docker inspect` says its CMD and WORKDIR are,
-      # which host port got published, and whether the container is still alive at the end —
-      # and none of those can be answered from a process already running inside it. `python3`
-      # is present in the runner's job image `docker.gitea.com/runner-images:ubuntu-latest`;
-      # note that a bare `python` is NOT, which is why the command below spells out python3.
+      # ci/smoke.py is split in two, and the split is worth knowing before editing either half.
+      # It runs on the RUNNER and drives `docker` itself, because several of its checks are
+      # about the container as an object — how the image behaves with no environment, what
+      # `docker inspect` says its CMD and WORKDIR are, whether the container is still alive at
+      # the end, and what it wrote to its log — and none of those can be answered from a process
+      # already running inside it. Everything that speaks HTTP lives in a probe it feeds to
+      # `docker exec -i <name> python -u -`, so those requests are made from INSIDE the
+      # container, against 127.0.0.1:8000 where uvicorn actually listens.
+      #
+      # NO PORT IS PUBLISHED, and that is not an omission. This job runs inside act_runner's own
+      # job container while `docker` drives a daemon outside it, so a published port lands in
+      # that daemon's network namespace and is not reachable from here — the first version of
+      # this gate did publish one, and every HTTP check came back `Connection refused` against a
+      # container that was up and serving. It is the same reasoning that makes the test jobs
+      # above stream the workspace in over stdin instead of bind-mounting it.
+      #
+      # `python3` is present in the runner's job image `docker.gitea.com/runner-images:
+      # ubuntu-latest`; note that a bare `python` is NOT, which is why the command below spells
+      # out python3. Inside the container it is the other way round — the image's own
+      # interpreter is `python` — and ci/smoke.py invokes it accordingly.
       #
       # The gate holds no credential and reaches no external service: it invents its own
       # AUTH_PASSWORD, points MQTT_HOST at a `.invalid` name that RFC 2606 guarantees can never
-      # resolve, and publishes the container's port on 127.0.0.1 only. That is what lets it run
-      # on a pull request at all — the real AUTH_PASSWORD lives in the stack on asakusa-infra
-      # and is never going to be available here, nor should it be.
-      #
-      # The host port is chosen by the daemon (`-p 127.0.0.1::8000`), not fixed here, so this
-      # PR check and a concurrent publish run cannot collide on a port. Both containers it
-      # starts carry $SMOKE_NAME, so anything left behind is removable by name.
+      # resolve, and exposes nothing to anything. That is what lets it run on a pull request at
+      # all — the deployment's real password is never going to be available here, nor should it
+      # be. Both containers it starts carry $SMOKE_NAME, so this PR check and a concurrent
+      # publish run cannot collide, and anything left behind is removable by name.
       #
       # Step-level `timeout-minutes`, the one act_runner is known to enforce (the job-level one
       # is only the outer bound). Same 12 minutes as in image-check-publish.yml, for the same
-      # arithmetic: ci/smoke.py's own documented worst case is 585 s if every docker call and
-      # every HTTP request it makes runs out its budget, and in practice the whole gate is well
+      # arithmetic: ci/smoke.py's own documented worst case is 615 s if every docker call it
+      # makes runs out its budget, the probe included, and in practice the whole gate is well
       # under a minute.
       timeout-minutes: 12
       env:
