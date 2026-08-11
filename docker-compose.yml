@@ -1,25 +1,67 @@
+# A readable record of what is actually deployed, not the file the deployment is applied from:
+# the live service is the Portainer stack `smarthome_floorplan` (id 189) on asakusa-infra
+# (10.31.50.139), edited in Portainer's own stack editor, published by Traefik on
+# sh.asakusa-lab.cc and reachable from the internet through the Keenetic at
+# 37.204.142.243:443. Everything below was brought into line with that stack; where it still
+# differs on purpose, the divergence is named in a comment right where it is, because an
+# unexplained difference between this file and production is indistinguishable from drift.
+#
+# The three deliberate divergences, in one place so they can be checked at a glance:
+#   1. every environment value is a placeholder (see the `environment:` block);
+#   2. the `com.centurylinklabs.watchtower.enable` label is present here and NOT yet on the
+#      running container (see the label);
+#   3. production also carries an `EDIT_PASSWORD` variable, which this file omits: no such
+#      setting exists in server/src/settings.py — `Settings` has `extra="ignore"`, so the app
+#      silently drops it — and it is left over from an older version. Writing it down here
+#      would document a variable that does nothing as though it did something.
+
 volumes:
-  smarthome_floorplan:
+  # Declared as `data`, not as `smarthome_floorplan`: compose prefixes volume names with the
+  # project name, so this is what produces the `smarthome_floorplan_data` volume the running
+  # container actually has. Naming it `smarthome_floorplan` here — which is what this file said
+  # before — would create `smarthome_floorplan_smarthome_floorplan` and silently start the
+  # service with an EMPTY data directory: a fresh floorplan config and no custom icon, with the
+  # real ones still on disk under the old name and nothing in the logs to say so.
+  data:
 
 networks:
+  # Traefik discovers this container over the docker socket, but it can only route to it if
+  # they share a network. `external: true` means compose expects it to exist already; it is not
+  # created or destroyed with this stack.
   docker_main_net:
     external: true
 
 services:
   smarthome_floorplan:
-    image: ghcr.io/vvzvlad/smarthome_floorplan:latest
-    container_name: smarthome-floorplan
+    # Gitea is where this image is published now: .gitea/workflows/image-check-publish.yml
+    # builds it, gates it on ci/smoke.py, and only then pushes :<sha> followed by :latest. The
+    # ghcr.io path this line carried before was left over from the GitHub Actions workflow that
+    # has been replaced.
+    image: gitea.vvzvlad.xyz/projects/smarthome_floorplan:latest
+    # Underscore, matching the running container. It was `smarthome-floorplan` here, and a
+    # container_name that does not match is not cosmetic: applying this file would leave the
+    # existing container in place and start a second one beside it, both claiming the same
+    # Traefik router name.
+    container_name: smarthome_floorplan
     restart: always
     volumes:
-      - smarthome_floorplan:/app/data
+      # /app/data is where `config_path` (data/config.json) and `icon_path` (data/icon.png)
+      # resolve to, since WORKDIR is /app. This mount is the entire persistent state of the
+      # service — the floorplan itself lives in that JSON.
+      - data:/app/data
     environment:
+      # NO REAL VALUES HERE, EVER. AUTH_PASSWORD is the credential that guards the whole
+      # service, and the rest describe one particular deployment; all four are set in the
+      # Portainer stack, which is where they belong. A placeholder that is obviously a
+      # placeholder is also what keeps a copy-paste of this file from starting a service whose
+      # password is whatever happened to be committed.
+      # AUTH_PASSWORD and MQTT_HOST are REQUIRED: `Settings` declares them with no default, so
+      # a stack redeployed without either of them fails at import and the container never
+      # starts. That is deliberate, and ci/smoke.py checks it on every build.
       AUTH_PASSWORD: XXX
       MQTT_HOST: XXX
-      # MQTT_PORT: 1883
-      # MQTT_USERNAME: XXX
-      # MQTT_PASSWORD: XXX
-      # APP_TITLE: Z2M Floorplan
-      TZ: Europe/Moscow
+      APP_TITLE: XXX
+      TZ: XXX
     networks:
       - docker_main_net
     logging:
@@ -27,17 +69,42 @@ services:
       options:
         max-file: 5
         max-size: 10m
+    # Label values are quoted strings throughout. Docker labels are strings by definition, and
+    # compose rejects a bare `true` or `8000` as "invalid type" under some schema versions —
+    # quoting costs nothing and removes a way for this file to fail to apply.
     labels:
       traefik.enable: "true"
-      traefik.http.routers.floorplan.rule: Host(`floorplan.example.com`)
-      traefik.http.services.floorplan.loadBalancer.server.port: 8000
-      traefik.http.routers.floorplan.entrypoints: websecure
-      traefik.http.routers.floorplan.tls: true
-      traefik.http.routers.floorplan.tls.certresolver: letsEncrypt
+      # Router and service are both named `smarthome_floorplan`, matching the running
+      # container. This file previously called them `floorplan` and pointed the rule at
+      # `floorplan.example.com`; applying it as it stood would have registered a second router
+      # for a hostname that does not exist while leaving sh.asakusa-lab.cc unrouted.
+      traefik.http.routers.smarthome_floorplan.rule: "Host(`sh.asakusa-lab.cc`)"
+      traefik.http.routers.smarthome_floorplan.entrypoints: "websecure"
+      traefik.http.routers.smarthome_floorplan.tls: "true"
+      traefik.http.routers.smarthome_floorplan.tls.certresolver: "letsEncrypt"
+      # The mixed casing of `loadBalancer` here and `loadbalancer` on the next line is what the
+      # running container has, and it is reproduced rather than tidied because this file is a
+      # record of that container. Traefik parses these label paths case-insensitively, so both
+      # spellings land on the same setting; "fixing" one would change nothing but would make
+      # the next comparison against production report a difference that is not one.
+      traefik.http.services.smarthome_floorplan.loadBalancer.server.port: "8000"
+      traefik.http.services.smarthome_floorplan.loadbalancer.server.scheme: "http"
+      # DIVERGENCE, on purpose: the running container does not carry this label yet. It is what
+      # Portainer's native ContainerAutomation.AutoUpdate (Scope=labeled) looks for, so adding
+      # it here is the decision to have new :latest images rolled out automatically — which is
+      # the other half of the CI in .gitea/workflows/: the gate is what makes an automatic
+      # rollout safe to want. The label carries watchtower's name and is nonetheless read by
+      # Portainer: watchtower was retired across the fleet on 10.08.2026 and the replacement
+      # understands both its own `io.portainer.update.enable` and this one, which is why
+      # nothing had to be re-labelled.
       com.centurylinklabs.watchtower.enable: "true"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/info').read()"]
-      interval: 30m
-      timeout: 5s
-      retries: 2
-      start_period: 30s
+    # NO HEALTHCHECK, and its absence is deliberate rather than forgotten. Production has none,
+    # and this file is a record of production; keeping the one that used to be here would have
+    # made applying it a silent change of the container's behaviour rather than a redeploy.
+    # It would also not have been worth much: it polled /api/info every 30 minutes, so a wedged
+    # container stayed "healthy" for up to half an hour, and nothing on asakusa-infra acts on a
+    # health verdict anyway — there is no autoheal container on that host. If one is ever
+    # wanted, /api/info is the right endpoint (it is the only unauthenticated JSON route and it
+    # touches neither MQTT nor the data volume), the interval has to come down to something
+    # like 30s, and adding it is a change to production that should be made in the Portainer
+    # stack and then recorded here — not the other way round.

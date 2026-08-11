@@ -1,0 +1,288 @@
+name: Tests
+
+# PR gate. This workflow deliberately never logs in to the registry and never pushes, and not
+# one `secrets` expression appears anywhere in this file — the word shows up only in prose like
+# this line, never as a value, so there is nothing here for a leak to leak. It runs the same
+# 198 backend tests and the same vitest suite as image-check-publish.yml, builds the same
+# image, and runs the same ci/smoke.py against it — while :latest, the tag the
+# `smarthome_floorplan` container in the stack of the same name (Portainer id 189) on
+# asakusa-infra follows, stays untouched by PR branches.
+#
+# The GHCR workflow this replaces triggered on `pull_request` too, and its build job logged in
+# to the registry before building on that trigger as well. It did not publish from a PR — the
+# push step carried `if: github.event_name != 'pull_request'` — but "the guard is an `if:` on
+# one step of a job that also holds credentials" is a different thing from "this file cannot
+# push", which is what the split into two files buys.
+on:
+  # Manual re-run: without it a run that flaked on runner networking could only be retried by
+  # pushing an empty commit to the PR branch. Safe to expose here — this workflow touches no
+  # registry and no secrets, it only tests, builds and smoke-tests.
+  workflow_dispatch:
+  # A pull request runs its own head on a self-hosted runner that mounts the host's docker
+  # socket, so in general `pull_request` means "execute a contributor's code as root on a
+  # machine the whole fleet shares". What takes the edge off it here is who can open one:
+  # self-registration on gitea.vvzvlad.xyz is disabled, so there is no way for an outsider to
+  # get an account, hence no fork and no PR from one. Every PR this trigger can ever fire on
+  # comes from a branch somebody already trusted with push access.
+  # A same-repo guard on `github.event.pull_request.head.repo.full_name` is the textbook fix
+  # and is deliberately NOT written here: that expression is unverified on Gitea, and an `if:`
+  # that silently evaluates to false turns this gate into one that never runs and always looks
+  # green — strictly worse than what it would be protecting against. It is also a fleet-wide
+  # question rather than this repo's: when it is done it should be done in every repository at
+  # once, after checking the expression against a real Gitea.
+  pull_request:
+    # This has to name the repo's REAL default branch — the base pull requests are opened
+    # against — so a rename of that branch has to be followed here, and in the `branches:`
+    # filter and the `$REF_NAME` check in image-check-publish.yml. A name that no longer matches
+    # does not fail, it goes quiet: the trigger stops matching, so the gate never runs, and a
+    # gate that never runs looks exactly like a gate that always passes.
+    branches: [ "main" ]
+
+permissions:
+  contents: read   # checkout
+
+# Nothing here is published, so a superseded run has no value: when a PR gets a new push, kill
+# the in-flight check and run the fresh head instead. This is the opposite of
+# image-check-publish.yml, where cancelling would leave holes in the :<sha> tag history.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The two test jobs are separate rather than two steps of one job so that a backend failure
+  # and a frontend failure are reported independently and can be re-run independently — and so
+  # that neither hides behind the other, which is what sequential steps in one job do. They
+  # cost two of the shared runner's capacity slots while they run; that is the trade, and it is
+  # bounded by their timeouts below.
+  # Both jobs are byte-identical to their twins in image-check-publish.yml, for the same reason
+  # the smoke step is: the PR gate and the publishing gate must be running the same tests, and
+  # the cheapest way to guarantee that is for the two to be literally the same text.
+  backend-tests:
+    runs-on: ubuntu-latest
+    # The runner is shared by every repository in the fleet, so a hung step does not just stall
+    # this run — it holds a capacity slot everyone else is queueing for. 25 is the outer bound
+    # over the single 20-minute step below, leaving room for checkout: it must EXCEED the sum,
+    # because act_runner kills the whole job when this fires.
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Run the backend test suite in a container
+      # 20 minutes is far above the real cost: `pip install` of six pinned runtime wheels plus
+      # pytest/httpx, then 198 tests that touch no network and no disk outside tmp_path — a
+      # couple of minutes cold. The bound is for a shared runner under load and for the pip
+      # index having a bad day.
+      timeout-minutes: 20
+      env:
+        # python:3.11-slim, the SAME base the Dockerfile's runtime stage uses. Testing under a
+        # different interpreter than the one that ships would leave exactly the gap this whole
+        # migration is about: a suite that is green on 3.12 and an image that runs 3.11.
+        RUNTIME_IMAGE: python:3.11-slim
+      run: |
+        set -e
+        set -o pipefail
+        # The workspace is streamed into the container as a tar over stdin rather than
+        # bind-mounted, and that is not a stylistic choice. This job runs INSIDE act_runner's
+        # own job container, while `docker` talks to the HOST's daemon through the mounted
+        # socket — so a `-v "$PWD:/src"` would ask the host to mount a path that means
+        # something entirely different there, or nothing at all, depending on how the runner
+        # was configured to hold the workspace. A tar over stdin is correct in every one of
+        # those configurations, and it also keeps the container from writing __pycache__ and
+        # .pytest_cache back into the checkout as root.
+        # `.git` is excluded because nothing in the test suite reads it and it is the largest
+        # thing in the tree.
+        # `--pull always`: unlike GitHub's ephemeral runners this daemon is persistent, so
+        # without it a once-pulled python:3.11-slim would sit in its cache for months and the
+        # tests would run against an unpatched base — the same reason `docker build --pull`
+        # carries the flag.
+        # The three variables are what `server/src/settings.py` needs to be importable at all:
+        # AUTH_PASSWORD and MQTT_HOST have no defaults, and COOKIE_SECURE has to be false
+        # because `cookie_secure` defaults to True and Starlette's TestClient speaks plain
+        # http, where a Secure cookie is issued and then dropped. server/tests/conftest.py
+        # sets the same three with `setdefault`, so they are belt and braces — and they are
+        # written out here anyway, because they are the contract the deployment has to satisfy
+        # and a conftest is free to stop defaulting them tomorrow.
+        tar -cf - --exclude=./.git . | docker run --rm -i --pull always \
+          -e AUTH_PASSWORD=test-password \
+          -e MQTT_HOST=localhost \
+          -e COOKIE_SECURE=false \
+          -e PIP_DISABLE_PIP_VERSION_CHECK=1 \
+          -e PYTHONDONTWRITEBYTECODE=1 \
+          "$RUNTIME_IMAGE" \
+          sh -c 'set -e; mkdir -p /src; tar -xf - -C /src; cd /src; pip install --no-cache-dir -r server/requirements-dev.txt; pytest --tb=short -q'
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Run the frontend test suite in a container
+      # 20 minutes, dominated by `npm ci` pulling the dependency tree cold; vitest itself runs
+      # the whole suite in a couple of seconds.
+      timeout-minutes: 20
+      env:
+        # node:22-alpine, the SAME image the Dockerfile's frontend stage builds in. It matters
+        # more here than for python: alpine is musl, so npm resolves the musl build of
+        # rollup's native binary, and a test job on a glibc node would be exercising a
+        # different toolchain than the one that produces the bundle that ships.
+        FRONTEND_IMAGE: node:22-alpine
+      run: |
+        set -e
+        set -o pipefail
+        # Same tar-over-stdin reasoning as the backend job above — see the comment there.
+        # `npx vitest run` rather than `npm test` so the command is visible here; they are the
+        # same thing (package.json's "test" script is `vitest run`).
+        # The playwright suite in e2e/ is deliberately NOT run, and its absence is a decision
+        # rather than an oversight: it needs real browsers, which means either a
+        # `playwright install` of a few hundred MB on every run of a runner the whole fleet
+        # shares, or a `mcr.microsoft.com/playwright` image of comparable size. It is minutes
+        # of download for three specs, on a gate that is supposed to answer quickly enough
+        # that people wait for it. vitest.config.ts already excludes `e2e/**` from this run, so
+        # nothing here silently half-runs them either.
+        tar -cf - --exclude=./.git . | docker run --rm -i --pull always \
+          -e CI=true \
+          "$FRONTEND_IMAGE" \
+          sh -c 'set -e; mkdir -p /src; tar -xf - -C /src; cd /src; npm ci; npx vitest run'
+
+  build-and-smoke:
+    # Both suites must be green before an image is built at all: a build that starts while the
+    # tests are still running is a build whose result nobody can act on, and on a shared runner
+    # it is also a slot taken from a job that could have used it.
+    needs: [ backend-tests, frontend-tests ]
+    # `ubuntu-latest` is a LABEL, not a machine: the instance-level runner registered in Gitea
+    # advertises it and serves every repository on the instance. Writing the runner's own name
+    # here would leave the job queued forever, because no runner offers a label by that name.
+    runs-on: ubuntu-latest
+    # Deliberately the same outer bound as image-check-publish.yml, so the two gates cannot
+    # drift apart on a number that is easy to change in one file and forget in the other.
+    # It is only ever an outer bound: this job has no push step, so its step-level timeouts
+    # (20 build + 12 smoke = 32 minutes) are the ones act_runner actually enforces, and 55
+    # leaves the rest for checkout and the two cleanup steps. It must stay above their sum: a
+    # job killed by this timeout may never run its `if: always()` cleanup, leaving containers
+    # and a few hundred MB of image on the docker daemon shared by the whole fleet.
+    timeout-minutes: 55
+    # Job-level, so the smoke step and the cleanup step below cannot disagree about it. They
+    # are the two ends of the same mechanism — ci/smoke.py names its two containers after this,
+    # the cleanup step removes them by the same name — and written as two separate literals
+    # they would go on looking correct while one of them was edited, turning the cleanup into a
+    # step that removes nothing and reports success.
+    # The run id is what keeps concurrent runs on this shared daemon from colliding, and
+    # ci/smoke.py refuses to start without this variable rather than falling back to a
+    # constant, which would reintroduce exactly that collision.
+    env:
+      SMOKE_NAME: smarthome-floorplan-pr-check-${{ github.run_id }}
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Compute the local image tag
+      id: tags
+      # A purely local tag: no registry host in front of it, so there is nothing here that
+      # `docker push` could even target. The run id keeps concurrent PR checks on the shared
+      # runner daemon from clobbering each other's tag.
+      env:
+        RUN_ID: ${{ github.run_id }}
+      run: |
+        echo "local=smarthome-floorplan-pr-check:$RUN_ID" >> "$GITHUB_OUTPUT"
+
+    - name: Build the Docker image
+      # Step-level `timeout-minutes` is the one known to be enforced by Gitea's act_runner; the
+      # job-level one above is only the outer bound. Same 20 minutes as in
+      # image-check-publish.yml: the two gates build the identical Dockerfile — node:22-alpine
+      # doing `npm ci` and `vue-tsc -b && vite build`, then python:3.11-slim with six pinned
+      # wheels — and must not disagree about how long that is allowed to take.
+      timeout-minutes: 20
+      env:
+        # Through the environment rather than interpolated into the script text, same rule as
+        # everywhere else in this repo's workflows.
+        LOCAL_TAG: ${{ steps.tags.outputs.local }}
+      run: |
+        # --pull for the same reason as in image-check-publish.yml: this runner is self-hosted
+        # with a persistent docker daemon, so without the flag a stale node:22-alpine or
+        # python:3.11-slim could sit in the cache for months. And as there, this is a BuildKit
+        # build despite the absence of `docker buildx` — that has been `docker build`'s default
+        # since Engine 23.0.
+        docker build --pull . --file Dockerfile --tag "$LOCAL_TAG"
+
+    - name: Smoke-test the built image
+      # The same gate that guards production, run here on a local tag with no login and no
+      # push. Keeping it in one file is the point: two copies of ci/smoke.py would drift, and
+      # the PR gate would stop matching the gate that guards production.
+      #
+      # ci/smoke.py runs on the RUNNER and drives `docker run` itself, rather than being piped
+      # into a container: several of its checks are about the container as a whole — how the
+      # image behaves with no environment, what `docker inspect` says its CMD and WORKDIR are,
+      # which host port got published, and whether the container is still alive at the end —
+      # and none of those can be answered from a process already running inside it. `python3`
+      # is present in the runner's job image `docker.gitea.com/runner-images:ubuntu-latest`;
+      # note that a bare `python` is NOT, which is why the command below spells out python3.
+      #
+      # The gate holds no credential and reaches no external service: it invents its own
+      # AUTH_PASSWORD, points MQTT_HOST at a `.invalid` name that RFC 2606 guarantees can never
+      # resolve, and publishes the container's port on 127.0.0.1 only. That is what lets it run
+      # on a pull request at all — the real AUTH_PASSWORD lives in the stack on asakusa-infra
+      # and is never going to be available here, nor should it be.
+      #
+      # The host port is chosen by the daemon (`-p 127.0.0.1::8000`), not fixed here, so this
+      # PR check and a concurrent publish run cannot collide on a port. Both containers it
+      # starts carry $SMOKE_NAME, so anything left behind is removable by name.
+      #
+      # Step-level `timeout-minutes`, the one act_runner is known to enforce (the job-level one
+      # is only the outer bound). Same 12 minutes as in image-check-publish.yml, for the same
+      # arithmetic: ci/smoke.py's own documented worst case is 585 s if every docker call and
+      # every HTTP request it makes runs out its budget, and in practice the whole gate is well
+      # under a minute.
+      timeout-minutes: 12
+      env:
+        # SMOKE_NAME is not here: it is set once at job level, so this step and the cleanup
+        # step below are guaranteed to be talking about the same containers.
+        SMOKE_IMAGE: ${{ steps.tags.outputs.local }}
+      # The body of this step is byte-identical to the one in image-check-publish.yml. Only the
+      # `env:` values above differ. The PR gate and the publishing gate must run the same
+      # checks against the same kind of container, and the cheapest way to guarantee that is
+      # for the two to be literally the same text — anything else drifts, and it drifts
+      # silently, in the direction of the PR gate testing less.
+      run: |
+        python3 ci/smoke.py
+
+    - name: Remove the smoke containers from the runner
+      # `always()`, and before the image cleanup below: this runner has one persistent docker
+      # daemon shared by every repository, so a container left behind by a failed run would sit
+      # there forever — and would also pin the image, making the `docker rmi` in the next step
+      # fail.
+      # ci/smoke.py removes both itself — the guard container before it starts it, the
+      # long-lived one in a `finally` — so on a normal run this is a no-op. It exists for the
+      # run where the step above was killed by its own timeout and never reached any of that.
+      # BOTH suffixes are removed, not just the long-lived container: `--rm` disposes of a
+      # container that EXITED, and the case this step is for is the container that did not.
+      # When ci/smoke.py's own subprocess timeout fires it kills the docker client on the
+      # runner, not the container on the daemon — so a hung guard survives its `--rm` and has
+      # to be removed here, by the name ci/smoke.py gave it for exactly this purpose.
+      # $SMOKE_NAME comes from the job-level `env:` — the same value the smoke step passed to
+      # ci/smoke.py, not a second copy of the expression that could drift from it.
+      if: always()
+      run: |
+        # The empty suffix is the long-lived container the HTTP checks run against; -guard is
+        # the one the missing-environment check runs with `--rm`. Kept in step with
+        # GUARD_SUFFIX in ci/smoke.py.
+        # No `set -eu` here on purpose: this is best-effort cleanup, every removal already ends
+        # in `|| true`, and failing the step would turn a leftover container into a red job.
+        for suffix in "" -guard; do docker rm -f "$SMOKE_NAME$suffix" || true; done
+
+    - name: Remove the built image from the runner
+      # The runner's docker daemon is persistent and shared with other repos, so every PR check
+      # would otherwise leave an image behind forever. Removes ONLY the tag this run created —
+      # no `docker system prune`, which would also wipe the images of every other repo sharing
+      # the same daemon.
+      # This gate runs on every push to a PR, so it produces MORE of that garbage than the
+      # publishing workflow does — see the full note in image-check-publish.yml.
+      # It does NOT reclaim everything: `docker rmi <tag>` never frees the BuildKit cache (a
+      # separate builder store, reclaimed only by `docker builder prune`), and `--pull` leaves
+      # the previous base images dangling whenever upstream publishes a new node:22-alpine or
+      # python:3.11-slim digest. Both need a separate periodic cleanup on the runner host.
+      # `always()` so a failed smoke still cleans up after itself.
+      if: always()
+      env:
+        LOCAL_TAG: ${{ steps.tags.outputs.local }}
+      run: |
+        docker rmi "$LOCAL_TAG" || true
