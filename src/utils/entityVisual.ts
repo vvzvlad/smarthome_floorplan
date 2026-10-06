@@ -7,22 +7,23 @@ import type { EntityConfig, LabelConfig } from '../types/floorplan';
 /**
  * Build the inline style object for an entity overlay in the editor. Mirrors
  * EntityOverlay.vue's styleObject exactly:
- *  - text/number/button/toggle/select entities render the same transparent,
- *    bordered move handle,
+ *  - text/number/button/toggle/select/camera entities render the same
+ *    transparent, bordered move handle (camera also gets its preview width),
  *  - light entities use the offColor (with a '#94a3b8' fallback when the colors
  *    object lacks an offColor), a circle/square borderRadius, opacity, rotation,
  *  - selection toggles the border color and zIndex.
  */
 export function entityStyle(
-  entity: Pick<EntityConfig, 'shape' | 'style' | 'x' | 'y' | 'type'>,
+  entity: Pick<EntityConfig, 'shape' | 'style' | 'x' | 'y' | 'type' | 'cameraConfig'>,
   isSelected: boolean,
 ): Record<string, string | number> {
   const { shape, style, x, y, type } = entity;
 
-  if (type === 'text' || type === 'number' || type === 'button' || type === 'toggle' || type === 'select') {
+  if (type === 'text' || type === 'number' || type === 'button' || type === 'toggle' || type === 'select' || type === 'camera') {
     return {
       left: `${x}%`,
       top: `${y}%`,
+      ...(type === 'camera' ? { width: `${entity.cameraConfig?.width ?? 10}%` } : {}),
       position: 'absolute' as const,
       transform: 'translate(-50%, -50%)',
       border: isSelected ? '2px solid var(--color-primary)' : '2px solid transparent',

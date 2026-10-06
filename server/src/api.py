@@ -1,7 +1,10 @@
 import asyncio
+import base64
 import logging
 import os
 import secrets
+import urllib.parse
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -230,6 +233,59 @@ async def post_mqtt_publish(request: Request):
         raise HTTPException(status_code=403, detail="topic is not a configured publish topic")
     await publish_raw(topic, value)
     return JSONResponse(content={"ok": True})
+
+
+# --- Camera snapshot proxy ---
+CAMERA_TIMEOUT = 5  # seconds to wait for the camera before giving up
+
+
+class _RedactCameraUrl(logging.Filter):
+    """Camera URLs may carry user:pass@ - keep the /api/camera query out of the access log.
+
+    Relies on uvicorn's access record args: (client, method, path+query, http_version, status).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) == 5 and str(args[2]).startswith("/api/camera?"):
+            record.args = (*args[:2], "/api/camera?<redacted>", *args[3:])
+        return True
+
+
+# uvicorn configures its loggers before importing the app and does not drop logger filters,
+# so registering at import time is enough.
+logging.getLogger("uvicorn.access").addFilter(_RedactCameraUrl())
+
+
+def _fetch_camera(url: str) -> tuple[bytes, str]:
+    """Blocking fetch of a camera snapshot. Returns (body, upstream Content-Type).
+
+    Credentials embedded in the URL (http://user:pass@host/...) are sent as HTTP Basic
+    auth: urllib does not do that itself, it takes "user:pass@host" for the host name and
+    the request fails.
+    """
+    parts = urllib.parse.urlsplit(url)
+    headers = {}
+    if parts.username is not None:
+        creds = f"{urllib.parse.unquote(parts.username)}:{urllib.parse.unquote(parts.password or '')}"
+        headers["Authorization"] = "Basic " + base64.b64encode(creds.encode()).decode()
+        url = urllib.parse.urlunsplit(parts._replace(netloc=parts.netloc.rpartition("@")[2]))
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=CAMERA_TIMEOUT) as resp:
+        return resp.read(), resp.headers.get("Content-Type") or "image/jpeg"
+
+
+@app.get("/api/camera", dependencies=[Depends(verify_auth)])
+async def get_camera(url: str):
+    """Proxy a camera snapshot image so the browser never talks to the camera directly.
+
+    no-store makes the browser re-download the frame on every page load.
+    """
+    try:
+        body, ctype = await asyncio.to_thread(_fetch_camera, url)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Camera fetch failed")
+    return Response(content=body, media_type=ctype, headers={"Cache-Control": "no-store"})
 
 
 _static_path = os.path.join(os.path.dirname(__file__), "..", "static")

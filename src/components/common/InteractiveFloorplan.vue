@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FloorplanConfig, EntityState, BinaryColors, EntityConfig } from '../../types/floorplan';
-import { computed, ref, useTemplateRef } from 'vue';
+import { computed, onUnmounted, ref, useTemplateRef } from 'vue';
 import { formatTextValue, formatRawTopicValue } from '../../utils/textEntity';
 import {
   resolveNumberValue,
@@ -14,6 +14,7 @@ import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
+import { cameraImageUrl } from '../../utils/api';
 
 const props = defineProps<{
     config: FloorplanConfig,
@@ -276,6 +277,56 @@ function selectOption(entity: EntityConfig, value: string) {
   emit('entity-select', entity.entityId, cfg.writeTopic, value);
 }
 
+function getCameraPositionStyle(entity: EntityConfig) {
+  const width = entity.cameraConfig?.width ?? 10;
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    width: `${width}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 2,
+  };
+}
+
+// Camera modal: the URL of the open camera and the cache-buster of its current frame.
+const openUrl = ref<string | null>(null);
+const frame = ref(0);
+let frameTimer: number | null = null;
+
+function clearFrameTimer() {
+  if (frameTimer !== null) {
+    clearTimeout(frameTimer);
+    frameTimer = null;
+  }
+}
+
+function openCamera(entity: EntityConfig) {
+  const url = entity.cameraConfig?.url;
+  if (!url) return;
+  frame.value = Date.now();
+  openUrl.value = url;
+}
+
+function closeCamera() {
+  clearFrameTimer();
+  openUrl.value = null;
+}
+
+// Request the next frame 1 s after the current one finished (load or error), so a
+// slow camera never gets overlapping requests. Events from an img already removed by
+// closing the modal are ignored, otherwise they would restart the chain after close.
+function scheduleNextFrame(e: Event) {
+  if (!(e.target as HTMLImageElement).isConnected) return;
+  clearFrameTimer();
+  frameTimer = window.setTimeout(() => {
+    frameTimer = null;
+    frame.value = Date.now();
+  }, 1000);
+}
+
+onUnmounted(clearFrameTimer);
+
 function atMin(entity: EntityConfig): boolean {
   const c = entity.numberConfig;
   if (!c) return false;
@@ -372,8 +423,22 @@ function atMax(entity: EntityConfig): boolean {
                         class="multi-switch-btn" :class="{ active: getSelectValue(entity) === opt.value }"
                         @click.stop="selectOption(entity, opt.value)">{{ opt.label }}</button>
                 </div>
+
+                <!-- Camera snapshot previews (loaded once per page load; click opens the live view) -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'camera')" :key="entity.id"
+                    class="camera-preview" :style="getCameraPositionStyle(entity)" :title="entity.label"
+                    @click.stop="openCamera(entity)">
+                    <img v-if="entity.cameraConfig?.url" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false" />
+                </div>
             </div>
         </div>
+
+        <!-- Camera live view. Teleported to body: .image-wrapper's container-type traps position: fixed. -->
+        <Teleport to="body">
+            <div v-if="openUrl" class="camera-modal" @click="closeCamera">
+                <img :src="cameraImageUrl(openUrl, frame)" alt="" @load="scheduleNextFrame" @error="scheduleNextFrame" />
+            </div>
+        </Teleport>
     </div>
 </template>
 

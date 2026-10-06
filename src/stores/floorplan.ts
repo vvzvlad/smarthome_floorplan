@@ -96,6 +96,9 @@ export const useFloorplanStore = defineStore('floorplan', () => {
             } : {}),
             ...(type === 'select' ? {
                 selectConfig: { readTopic: '', writeTopic: '', options: [{ label: 'Off', value: 'OFF' }, { label: 'Heat', value: 'heat' }, { label: 'Cool', value: 'cool' }], size: 2.5 }
+            } : {}),
+            ...(type === 'camera' ? {
+                cameraConfig: { url: '', width: 10 }
             } : {})
         };
         config.value.entities.push(newEntity);

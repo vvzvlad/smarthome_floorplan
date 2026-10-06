@@ -337,6 +337,33 @@ input:focus {
 .multi-switch .multi-switch-btn:hover:not(.active) { background: rgba(0, 0, 0, 0.06); }
 .multi-switch .multi-switch-btn.active { background: #22c55e; color: #ffffff; }
 
+.camera-preview {
+  background: #111;
+  min-height: 3cqw; /* keeps an empty/broken preview visible and clickable */
+  border-radius: 0.4cqw;
+  overflow: hidden;
+  box-shadow: 0 0.12em 0.4em rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  user-select: none;
+  /* width is set inline (in % of the floorplan) per widget; the img fills it via .image-wrapper img */
+}
+
+.camera-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+.camera-modal img {
+  max-width: 95vw;
+  max-height: 95vh;
+  object-fit: contain;
+}
+
 .entity-shape {
   /* Style injected via inline styles, but base properties here if needed */
 }
