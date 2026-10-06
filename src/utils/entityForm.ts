@@ -2,7 +2,7 @@
 // filtering, numeric-field parsing and default-config seeds can be unit-tested
 // without mounting the component.
 
-import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig } from '../types/floorplan';
+import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig, CameraConfig } from '../types/floorplan';
 
 /**
  * Filter a device list by a case-insensitive substring query. An empty query
@@ -73,4 +73,12 @@ export function defaultSelectConfig(): SelectConfig {
     ],
     size: 2.5,
   };
+}
+
+/**
+ * Default seed for a camera-entity config, matching PropertiesPanel.vue's
+ * onTypeChange literal.
+ */
+export function defaultCameraConfig(): CameraConfig {
+  return { url: '', width: 10 };
 }

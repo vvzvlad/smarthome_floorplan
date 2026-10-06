@@ -139,6 +139,13 @@ export async function fetchBootstrap(): Promise<BootstrapData> {
     }
 }
 
+/** URL of the backend camera snapshot proxy for a camera URL. `bust` is appended as a
+ *  cache-buster so each refresh frame is a distinct request. */
+export function cameraImageUrl(url: string, bust?: number): string {
+    const base = `/api/camera?url=${encodeURIComponent(url)}`;
+    return bust === undefined ? base : `${base}&t=${bust}`;
+}
+
 export async function fetchDevices(): Promise<string[]> {
     const res = await apiFetch('/api/devices');
     if (!res.ok) throw new Error('Failed to fetch devices');

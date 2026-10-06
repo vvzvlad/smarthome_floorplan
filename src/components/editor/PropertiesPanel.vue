@@ -4,7 +4,7 @@ import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
 import { sanitizeFilenameBase, triggerDownload } from '../../utils/download';
-import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig, defaultSelectConfig } from '../../utils/entityForm';
+import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig, defaultSelectConfig, defaultCameraConfig } from '../../utils/entityForm';
 import { normalizeImportedConfig } from '../../utils/configMigration';
 const store = useFloorplanStore();
 
@@ -34,6 +34,10 @@ function addToggleEntity() {
 
 function addSelectEntity() {
     store.addEntity('select');
+}
+
+function addCameraEntity() {
+    store.addEntity('camera');
 }
 
 function deleteEntity() {
@@ -214,6 +218,9 @@ function onTypeChange() {
     if (selectedEntity.value.type === 'select' && !selectedEntity.value.selectConfig) {
         store.updateEntity(selectedEntity.value.id, { selectConfig: defaultSelectConfig() });
     }
+    if (selectedEntity.value.type === 'camera' && !selectedEntity.value.cameraConfig) {
+        store.updateEntity(selectedEntity.value.id, { cameraConfig: defaultCameraConfig() });
+    }
 }
 
 function setTextJsonPath(e: Event) {
@@ -309,6 +316,18 @@ function addSelectOption() {
 function removeSelectOption(index: number) {
     selectedEntity.value?.selectConfig?.options.splice(index, 1);
 }
+
+function setCameraUrl(e: Event) {
+    if (selectedEntity.value?.cameraConfig) {
+        selectedEntity.value.cameraConfig.url = (e.target as HTMLInputElement).value;
+    }
+}
+function setCameraNum(key: 'width', e: Event) {
+    if (selectedEntity.value?.cameraConfig) {
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) selectedEntity.value.cameraConfig[key] = n;
+    }
+}
 </script>
 
 <template>
@@ -328,6 +347,7 @@ function removeSelectOption(index: number) {
                     <button @click="addButtonEntity" class="secondary">Add Button Widget</button>
                     <button @click="addToggleEntity" class="secondary">Add Toggle Switch</button>
                     <button @click="addSelectEntity" class="secondary">Add Multi Switch</button>
+                    <button @click="addCameraEntity" class="secondary">Add Camera</button>
                 </div>
 
                 <div class="config-actions">
@@ -389,6 +409,7 @@ function removeSelectOption(index: number) {
                             <option value="button">Button</option>
                             <option value="toggle">Toggle</option>
                             <option value="select">Multi Switch</option>
+                            <option value="camera">Camera</option>
                         </select>
                     </div>
 
@@ -576,6 +597,21 @@ function removeSelectOption(index: number) {
                             <input type="number" :value="selectedEntity.selectConfig?.size ?? 2.5" step="0.1" min="0.5" @input="setSelectNum('size', $event)">
                         </div>
                         <p class="hint small">Publishes the selected option's value to the write topic; highlights the option whose value matches the read topic.</p>
+                    </template>
+
+                    <!-- Camera entity config -->
+                    <template v-else-if="selectedEntity.type === 'camera'">
+                        <div class="section-title">Camera</div>
+                        <div class="input-group">
+                            <label>Snapshot URL</label>
+                            <input type="text" :value="selectedEntity.cameraConfig?.url ?? ''"
+                                @input="setCameraUrl" placeholder="http://10.31.50.106/image.jpg">
+                        </div>
+                        <div class="input-group">
+                            <label>Width (%)</label>
+                            <input type="number" :value="selectedEntity.cameraConfig?.width ?? 10" step="1" min="1" @input="setCameraNum('width', $event)">
+                        </div>
+                        <p class="hint small">Fetched through the backend. The map preview loads once per page load; click it to open a view that refreshes every second. Password-protected camera: <code>http://user:pass@host/image.jpg</code> (encode <code>%</code> <code>#</code> <code>/</code> <code>?</code> in the password as <code>%25</code> <code>%23</code> <code>%2F</code> <code>%3F</code>).</p>
                     </template>
 
                     <!-- Light entity config -->

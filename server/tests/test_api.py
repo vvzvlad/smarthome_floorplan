@@ -1,3 +1,6 @@
+import base64
+import logging
+
 import pytest
 
 from src import api
@@ -395,3 +398,76 @@ def test_login_non_string_password_401(client):
 def test_login_correct_then_session_true(client):
     assert client.post("/api/login", json={"password": TEST_PASSWORD}).status_code == 200
     assert client.get("/api/session").json() == {"auth": True}
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/camera
+# --------------------------------------------------------------------------- #
+def test_camera_requires_auth(client):
+    assert client.get("/api/camera", params={"url": "http://cam/image.jpg"}).status_code == 401
+
+
+def test_camera_proxies_image(auth_client, monkeypatch):
+    fetched = {}
+
+    def fake_fetch(url):
+        fetched["url"] = url
+        return b"\xff\xd8jpegdata", "image/jpeg"
+
+    monkeypatch.setattr(api, "_fetch_camera", fake_fetch)
+    resp = auth_client.get("/api/camera", params={"url": "http://cam/image.jpg?a=1&b=2"})
+    assert resp.status_code == 200
+    assert resp.content == b"\xff\xd8jpegdata"
+    assert resp.headers["content-type"] == "image/jpeg"
+    assert resp.headers["cache-control"] == "no-store"
+    # The full (decoded) camera URL, including its own query string, reaches the fetcher
+    assert fetched["url"] == "http://cam/image.jpg?a=1&b=2"
+
+
+def test_camera_fetch_error_502(auth_client, monkeypatch):
+    def fake_fetch(url):
+        raise OSError("camera unreachable")
+
+    monkeypatch.setattr(api, "_fetch_camera", fake_fetch)
+    resp = auth_client.get("/api/camera", params={"url": "http://cam/image.jpg"})
+    assert resp.status_code == 502
+
+
+def test_camera_fetch_sends_url_credentials_as_basic_auth(monkeypatch):
+    seen = {}
+
+    class FakeResp:
+        headers = {"Content-Type": "image/jpeg"}
+
+        def read(self):
+            return b"jpg"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(req, timeout):
+        seen["url"] = req.full_url
+        seen["auth"] = req.get_header("Authorization")
+        return FakeResp()
+
+    monkeypatch.setattr(api.urllib.request, "urlopen", fake_urlopen)
+    assert api._fetch_camera("http://admin:p%40ss@10.0.0.5:8080/image.jpg") == (b"jpg", "image/jpeg")
+    # Credentials leave the URL and travel as a Basic auth header (percent-decoded)
+    assert seen["url"] == "http://10.0.0.5:8080/image.jpg"
+    assert seen["auth"] == "Basic " + base64.b64encode(b"admin:p@ss").decode()
+
+
+def test_camera_url_redacted_in_access_log():
+    # Same shape as uvicorn's access record: (client, method, path+query, http_version, status)
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+        ("1.2.3.4:5", "GET", "/api/camera?url=http%3A%2F%2Fadmin%3Asecret%40cam%2Fimage.jpg&t=1", "1.1", 200),
+        None,
+    )
+    assert all(f.filter(record) for f in logging.getLogger("uvicorn.access").filters)
+    msg = record.getMessage()
+    assert "secret" not in msg
+    assert '"GET /api/camera?<redacted> HTTP/1.1" 200' in msg

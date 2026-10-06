@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select';
+export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select' | 'camera';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -70,6 +70,11 @@ export interface SelectConfig {
   size: number;               // base size in cqw; scales the whole control
 }
 
+export interface CameraConfig {
+  url: string;     // camera JPEG snapshot URL, fetched through the backend, e.g. "http://10.31.50.106/image.jpg"
+  width: number;   // preview width in % of the floorplan width
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -86,6 +91,7 @@ export interface EntityConfig {
   buttonConfig?: ButtonConfig;
   toggleConfig?: ToggleConfig;
   selectConfig?: SelectConfig;
+  cameraConfig?: CameraConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }

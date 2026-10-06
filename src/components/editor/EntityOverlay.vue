@@ -9,6 +9,7 @@ import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
+import { cameraImageUrl } from '../../utils/api';
 
 const props = defineProps<{
   entity: EntityConfig
@@ -290,6 +291,10 @@ const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`
       :style="{ fontSize: selectSize, pointerEvents: 'none' }">
       <span v-for="(opt, i) in entity.selectConfig?.options ?? []" :key="i"
         class="multi-switch-btn" :class="{ active: selectValue === opt.value }">{{ opt.label }}</span>
+    </div>
+    <!-- Camera entity: non-interactive snapshot preview for placement -->
+    <div v-else-if="entity.type === 'camera'" class="camera-preview" style="pointer-events: none">
+      <img v-if="entity.cameraConfig?.url" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false">
     </div>
     <!-- Light entity: show label if enabled -->
     <div v-else-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"
