@@ -38,6 +38,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // autoUpdate only turns these on by itself with injectRegister 'auto'. With
+        // injectRegister: false a new SW stays "waiting" while any tab of the old one is
+        // open, and every normal reload keeps serving the old precached build.
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
