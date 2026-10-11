@@ -78,8 +78,7 @@ export function labelTransform(
  * full onOpacity is returned unchanged.
  *
  * NOTE: this formula intentionally DIFFERS from brightnessToShapeOpacity below
- * (which floors at 0.3). The divergence is preserved exactly as in the original
- * InteractiveFloorplan.vue code; the two are NOT unified.
+ * (which floors at 0.3); the two are NOT unified.
  */
 export function brightnessToGradientOpacity(
   brightness: number | undefined,
@@ -95,8 +94,8 @@ export function brightnessToGradientOpacity(
  * 0.3 + (brightness/255) * (onOpacity - 0.3). When brightness is undefined the
  * onOpacity is returned unchanged.
  *
- * NOTE: this floors at 0.3, unlike brightnessToGradientOpacity. The divergence
- * is preserved exactly as in the original code; the two are NOT unified.
+ * NOTE: this floors at 0.3, unlike brightnessToGradientOpacity; the two are
+ * NOT unified.
  */
 export function brightnessToShapeOpacity(
   brightness: number | undefined,

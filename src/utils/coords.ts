@@ -1,6 +1,5 @@
 // Pure coordinate / geometry helpers shared by the editor canvas and entity
-// overlay. Extracted from CanvasArea.vue and EntityOverlay.vue so the math can
-// be unit-tested in isolation and is no longer duplicated across components.
+// overlay, unit-tested in isolation.
 
 export interface Point {
   x: number;
@@ -16,8 +15,7 @@ export interface RectLike {
 
 /**
  * Convert a screen-space pointer position into image-space percentages (0-100)
- * relative to the given bounding rect. Previously duplicated ~4x across
- * CanvasArea.vue and EntityOverlay.vue.
+ * relative to the given bounding rect.
  *
  * Guards against zero width/height so callers never get NaN/Infinity: a zero
  * dimension yields 0 on that axis instead of dividing by zero.
@@ -50,12 +48,8 @@ export function clampZoom(current: number, delta: number): number {
  * Compute the drag delta as image-space percentages from a previous to a
  * current pointer position, given the dragged surface's dimensions.
  *
- * NOTE: This is the SINGLE shared drag-delta function. The entity-drag path in
- * EntityOverlay.vue previously divided by width/height with NO zero guard
- * (latent divide-by-zero producing NaN), while the label-drag path DID guard
- * against zero dimensions by bailing out. Unifying both paths here deliberately
- * makes the entity-drag path safe too: a zero dimension yields a 0 delta on
- * that axis instead of NaN/Infinity.
+ * The single drag-delta function for both the entity and label drag paths. A
+ * zero dimension yields a 0 delta on that axis instead of NaN/Infinity.
  */
 export function dragDeltaPercent(
   curr: Point,

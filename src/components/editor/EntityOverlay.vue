@@ -44,9 +44,8 @@ function onMouseMove(event: MouseEvent) {
   if (!isDragging.value) return;
 
   // Calculate percentage change. We need the container dimensions; assume the
-  // entity's parent is the .image-wrapper. dragDeltaPercent now guards against
-  // zero dimensions (see coords.ts), which makes this previously-unguarded path
-  // safe from divide-by-zero.
+  // entity's parent is the .image-wrapper. dragDeltaPercent guards against zero
+  // dimensions (see coords.ts).
   const container = document.querySelector('.image-wrapper');
   if (!container) return;
 
@@ -139,9 +138,8 @@ function onLabelMouseMove(event: MouseEvent) {
   if (!isLabelDragging.value || !labelRef.value) return;
 
   // Calculate percentage change based on LABEL dimensions. dragDeltaPercent
-  // guards against zero dimensions (yields a 0 delta), so the explicit
-  // zero-dimension early return is no longer needed: a zero size leaves the
-  // offset unchanged just as before.
+  // yields a 0 delta for a zero dimension, so a zero size leaves the offset
+  // unchanged.
   const rect = labelRef.value.getBoundingClientRect();
   const { dxPercent, dyPercent } = dragDeltaPercent(
     { x: event.clientX, y: event.clientY },
