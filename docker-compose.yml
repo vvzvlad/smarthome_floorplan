@@ -1,29 +1,18 @@
-# A readable record of what is actually deployed, not the file the deployment is applied from:
-# the live service runs as a Portainer-managed stack and is edited in Portainer's own stack
-# editor. Everything below was brought into line with that container; where it still differs on
-# purpose, the divergence is named in a comment right where it is, because an unexplained
-# difference between this file and the deployment is indistinguishable from drift.
-#
-# The deliberate divergences, in one place so they can be checked at a glance:
+# A readable record of what is deployed, not the file the deployment is applied from: the live
+# service runs as a Portainer-managed stack and is edited in Portainer's stack editor. Where this
+# file differs from the running container on purpose, the difference is named here:
 #   1. every environment value is a placeholder (see the `environment:` block);
 #   2. the deployment also carries an `EDIT_PASSWORD` variable, which this file omits: no such
-#      setting exists in server/src/settings.py — `Settings` has `extra="ignore"`, so the app
-#      silently drops it — and it is left over from an older version. Writing it down here
-#      would document a variable that does nothing as though it did something;
-#   3. the `image:` line names the Gitea registry, which is where .gitea/workflows/ publishes
-#      now. The running container was started from the old ghcr.io image and will only move
-#      across on its next update.
-# Everything else here — the container name, the volume, the labels, the absence of a
-# healthcheck — matches the running container as it stands.
+#      setting exists in server/src/settings.py (`Settings` has `extra="ignore"`, so the app
+#      drops it);
+#   3. the `image:` line names the Gitea registry, which is where .gitea/workflows/ publishes.
+# Everything else — the container name, the volume, the labels, the absence of a healthcheck —
+# matches the running container.
 
 volumes:
-  # Declared as `data`, not as `smarthome_floorplan`: compose prefixes volume names with the
-  # project name, so this is what produces the `smarthome_floorplan_data` volume the running
-  # container actually has (confirmed against its `Mounts`). Naming it `smarthome_floorplan`
-  # here — which is what this file said before — would create
-  # `smarthome_floorplan_smarthome_floorplan` and silently start the service with an EMPTY data
-  # directory: a fresh floorplan config and no custom icon, with the real ones still on disk
-  # under the old name and nothing in the logs to say so.
+  # Declared as `data`: compose prefixes volume names with the project name, so this produces
+  # the `smarthome_floorplan_data` volume the running container has. Any other name would start
+  # the service with an empty data directory.
   data:
 
 networks:
@@ -35,15 +24,11 @@ networks:
 
 services:
   smarthome_floorplan:
-    # Gitea is where this image is published now: .gitea/workflows/image-check-publish.yml
-    # builds it, gates it on ci/smoke.py, and only then pushes :<sha> followed by :latest. The
-    # ghcr.io path this line carried before was left over from the GitHub Actions workflow that
-    # has been replaced.
+    # Built by .gitea/workflows/image-check-publish.yml, gated on ci/smoke.py, then pushed as
+    # :<sha> followed by :latest.
     image: gitea.vvzvlad.xyz/projects/smarthome_floorplan:latest
-    # Underscore, matching the running container. It was `smarthome-floorplan` here, and the
-    # name is not cosmetic: it is what `docker logs`, `docker exec`, the wiki and every runbook
-    # refer to this service by, so a mismatch in this file means the next apply silently
-    # renames it out from under all of them.
+    # Underscore, matching the running container: `docker logs`, `docker exec`, the wiki and the
+    # runbooks refer to the service by this name.
     container_name: smarthome_floorplan
     restart: always
     volumes:
@@ -52,14 +37,9 @@ services:
       # the entire persistent state of the service — the floorplan itself lives in that JSON.
       - data:/app/data
     environment:
-      # NO REAL VALUES HERE, EVER. AUTH_PASSWORD is the credential that guards the whole
-      # service, and the rest describe one particular deployment; all four are set in the
-      # Portainer stack, which is where they belong. A placeholder that is obviously a
-      # placeholder is also what keeps a copy-paste of this file from starting a service whose
-      # password is whatever happened to be committed.
-      # AUTH_PASSWORD and MQTT_HOST are REQUIRED: `Settings` declares them with no default, so a
-      # stack redeployed without either of them fails at import and the container never starts.
-      # That is deliberate, and ci/smoke.py checks it on every build.
+      # No real values here: all four are set in the Portainer stack. AUTH_PASSWORD and
+      # MQTT_HOST are required (`Settings` has no default for them), so a stack without either
+      # fails at import and the container never starts; ci/smoke.py checks this on every build.
       AUTH_PASSWORD: XXX
       MQTT_HOST: XXX
       APP_TITLE: XXX
@@ -77,34 +57,18 @@ services:
     labels:
       traefik.enable: "true"
       # Router and service are both named `smarthome_floorplan`, matching the running container.
-      # This file previously called them `floorplan` and pointed the rule at
-      # `floorplan.example.com`, so it described a service that does not exist.
       traefik.http.routers.smarthome_floorplan.rule: "Host(`sh.asakusa-lab.cc`)"
       traefik.http.routers.smarthome_floorplan.entrypoints: "websecure"
       traefik.http.routers.smarthome_floorplan.tls: "true"
       traefik.http.routers.smarthome_floorplan.tls.certresolver: "letsEncrypt"
-      # The mixed casing of `loadBalancer` here and `loadbalancer` on the next line is what the
-      # running container has, and it is reproduced rather than tidied because this file is a
-      # record of that container. Traefik parses these label paths case-insensitively, so both
-      # spellings land on the same setting; "fixing" one would change nothing but would make the
-      # next comparison against the deployment report a difference that is not one.
+      # The mixed casing `loadBalancer` / `loadbalancer` reproduces the running container.
+      # Traefik parses these label paths case-insensitively, so both land on the same setting.
       traefik.http.services.smarthome_floorplan.loadBalancer.server.port: "8000"
       traefik.http.services.smarthome_floorplan.loadbalancer.server.scheme: "http"
-      # Auto-update. Read by the native ContainerAutomation.AutoUpdate in the Portainer fork,
-      # which polls for a new :latest and redeploys on it; this label is what puts a container
-      # in scope. It is already on the running container, and it is the only auto-update label
-      # the fleet convention carries — so this line reproduces the deployment rather than
-      # changing it. It is also the other half of the CI in .gitea/workflows/: an automatic
-      # rollout is only safe to want because the gate stands between the build and :latest.
+      # Auto-update: Portainer's ContainerAutomation.AutoUpdate polls for a new :latest and
+      # redeploys on it. Safe only because the CI gate stands between the build and :latest.
       io.portainer.update.enable: "true"
-    # NO HEALTHCHECK, and its absence is deliberate rather than forgotten: the running container
-    # has none, and this file is a record of it. Keeping the one that used to be here would have
-    # made applying this file a silent change of the container's behaviour rather than a
-    # redeploy — and that change is not free behind Traefik, which will not route to a container
-    # whose health is `starting` or `unhealthy`. The old block was also worth little on its own
-    # terms: it polled /api/info on `interval: 30m`, so a wedged container stayed "healthy" for
-    # up to half an hour. If one is ever wanted, /api/info is the right endpoint — it is the
-    # only unauthenticated JSON route and it touches neither MQTT nor the data volume — the
-    # interval has to come down to seconds with a start_period that covers startup, and it
-    # should be added to the deployment first and recorded here afterwards, not the other way
-    # round.
+    # No healthcheck, matching the running container. Traefik will not route to a container whose
+    # health is `starting` or `unhealthy`, so adding one changes behaviour: add it to the
+    # deployment first. /api/info is the right endpoint (unauthenticated, touches neither MQTT nor
+    # the data volume), with an interval in seconds and a start_period that covers startup.

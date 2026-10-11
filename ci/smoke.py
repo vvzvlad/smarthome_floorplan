@@ -1,106 +1,48 @@
 """Smoke gate for the smarthome_floorplan image, run on the CI runner against an
 already-built image.
 
-It is split in two, and the split is the thing to understand before changing anything here.
+It is split in two:
 
-The OUTER half is this file: a plain `python3 ci/smoke.py` on the runner that drives `docker`
-against the tag it is given in $SMOKE_IMAGE. It answers the questions that are about the
-container as an object — how the image behaves with no environment at all, what
-`docker inspect` says its CMD and WORKDIR are, whether the container is still alive when
-everything else is done, and what it wrote to its log. None of those can be answered from a
-process already running inside it.
+* The OUTER half is this file: `python3 ci/smoke.py` on the runner, driving `docker` against
+  the tag in $SMOKE_IMAGE. It checks the container as an object: behaviour with no
+  environment, the CMD and WORKDIR `docker inspect` reports, whether it is still alive at the
+  end, and its log.
+* The INNER half is the PROBE string below, fed to `docker exec -i <name> python -u -`. It
+  makes every HTTP check from inside the container against 127.0.0.1:8000, because the job
+  (inside act_runner's container) and the docker daemon are in different network namespaces:
+  a published port would not be reachable from here. `docker exec` propagates the exit
+  status, so the outer half can tell "the probe reported failures" from "the probe died".
 
-The INNER half is the PROBE below: a program that lives here as a string constant and is fed
-to `docker exec -i <name> python -u -`. It answers everything that is about HTTP, and it has
-to run inside for a reason that cost this repo one red CI run to learn: **this job and the
-docker daemon are not in the same network namespace.** Gitea's act_runner executes the job
-inside its own job container, while the `docker` CLI it provides drives a daemon that lives
-outside that container. So `-p 127.0.0.1::8000` publishes the port where THAT daemon runs,
-`docker port` truthfully reports the port it bound there — and a
-`urlopen("http://127.0.0.1:32768")` from this script reaches the JOB container's own loopback,
-where nothing is listening. Every HTTP check came back `Connection refused` against a container
-that was up, healthy and serving. The same reasoning already applied to the workspace, which is
-why the test jobs stream it in as a tar over stdin instead of bind-mounting it; it applies to
-ports too, and now it is written down in both places.
+The runner image ships `python3` but no bare `python`. Only the standard library is used on
+either side.
 
-So: no port is published, no address is discovered, and nothing here assumes anything about
-the network between the runner and the daemon. The probe talks to 127.0.0.1:8000 from inside
-the container, where uvicorn is actually listening. `docker exec -i <name> python -u -` is the
-mechanism the fleet already uses (token_checker's gate is piped in the same way), `-i` attaches
-stdin without asking for a tty, and `docker exec` propagates the command's exit status, which
-is what lets the outer half tell "the probe reported failures" from "the probe died".
+The pytest and vitest suites run on a checkout before the image is built; this gate checks
+the artefact that gets deployed:
 
-The runner's job image (`docker.gitea.com/runner-images:ubuntu-latest`) ships /usr/bin/python3;
-note that it ships `python3` and NOT a bare `python`, which is why both workflows invoke this
-as `python3 ci/smoke.py`. Nothing beyond the standard library is imported on either side —
-inside the container that is not even a choice, since the runtime image installs only the six
-wheels in server/requirements.txt.
+* (a) the required-variable guard fires: with no AUTH_PASSWORD / MQTT_HOST, `Settings()`
+  raises at import and the container exits naming both fields, so a stack redeployed without
+  the password dies instead of coming up open. Outer half.
+* (b) the image serves /api/info with the APP_TITLE the container was given. Probe.
+* (c) every authenticated endpoint answers 401 without a session (the service is public, so a
+  dropped `Depends(verify_auth)` is the most expensive regression). Probe.
+* (d) the login chain works end to end through `http.cookiejar`: wrong password rejected with
+  no cookie, right password accepted, the session cookie opens a protected route. Probe.
+* (e) the frontend is in the image: the probe fetches the HTML and downloads every asset it
+  references (StaticFiles answers a miss with its own 404; status and content type are
+  checked), and the outer half checks index.html on disk, including its size.
+* (f) the app survives an unreachable broker: `mqtt_listener_loop()` runs as a background
+  task with a reconnect loop. Outer half: the container's state and its log.
+* (g) the image's declared contract: CMD, WORKDIR, no ENTRYPOINT. Outer half.
 
-What this gate can be, and what it cannot
------------------------------------------
-There IS a test suite in this repo — 198 pytest cases for the backend and a vitest suite for
-the frontend — and both run in their own jobs before the image is built. That makes this gate's
-job narrower and sharper than "does the code work": the tests already answer that, in a
-checkout, against source files. What they cannot answer is whether the ARTEFACT that gets
-deployed carries that code, is wired up the way the deployment expects, and comes up on its
-own. Every check below is one of those, and every one of them is a way this image has a
-realistic chance of shipping broken while all 198 tests stay green:
+Nothing here holds a credential or reaches an external service: the password is invented here,
+MQTT_HOST is a `.invalid` name (RFC 2606), and no port is exposed.
 
-* (a) the required-variable guard still fires. `server/src/settings.py` declares
-  `auth_password` and `mqtt_host` with no default, so `Settings()` raises a pydantic
-  ValidationError at IMPORT time and the container cannot start. That is the intended behaviour
-  and it must stay intended: a deployment redeployed without AUTH_PASSWORD has to die loudly
-  rather than come up with an empty password. `restart: always` in the compose file means it
-  will be restarted either way, so the exit code and that message are the only difference
-  between "somebody dropped a variable out of the stack" and a service that is quietly wide
-  open. Outer half — it needs `docker run`.
-* (b) the image comes up and serves /api/info, with the APP_TITLE the container was actually
-  given. Checking that "something answered 200" would pass on a stale image, on a wrong image,
-  and on an image whose settings never reached the app. Probe.
-* (c) every authenticated endpoint still answers 401 without a session. The deployed service
-  is reachable from the public internet, so a `Depends(verify_auth)` dropped from a route
-  handler is the most expensive regression this repo can ship, and it is invisible in every
-  other check here: the route would answer 200 and everything would look better than before.
-  Probe.
-* (d) the whole login chain works end to end: wrong password rejected with no cookie, right
-  password accepted, session cookie issued, and that cookie actually opening a protected route
-  — driven through `http.cookiejar`, so the cookie has to be acceptable to a client that
-  obeys its attributes and not merely present in a header. Probe.
-* (e) the frontend is really in there. This is the single biggest risk of a two-stage
-  Dockerfile: stage one runs `npm ci && npm run build`, stage two copies `/app/dist` into
-  `./static/`, and if that build ever produces an empty or partial `dist` the image still
-  builds, still starts, still answers every API call above — and serves a blank page. The probe
-  fetches the HTML, reads the asset URLs out of it and downloads each one: a missing file
-  answers 404 (StaticFiles returns its own JSON 404 on a miss — the `html=True` index fallback
-  applies to DIRECTORIES, not to arbitrary paths, and there is no 404.html in the build), so
-  the status alone catches an absent bundle and the content type catches one that is being
-  served as the wrong thing. The outer half looks for index.html on disk besides, which is a
-  source of truth independent of the HTTP layer and the only place its SIZE is checked.
-* (f) the app survives an unreachable broker. The whole gate rests on this: there is no MQTT
-  broker in CI, and `mqtt_listener_loop()` is started as a background task by the lifespan
-  handler, so the app is supposed to come up regardless and retry in a loop. If that ever
-  stopped being true the container would die and everything above would go red at once with no
-  line saying which failure was the real one. Outer half — the container's state and its log.
-* (g) the image's declared contract: CMD, WORKDIR, and the absence of an ENTRYPOINT. Every
-  `docker run` in this file, and production itself, depends on the image's own command being
-  the thing that runs. Outer half.
+Two invariants:
 
-Nothing here holds a credential or reaches an external service. The password is invented by
-this file and passed in as AUTH_PASSWORD, the MQTT host points at a `.invalid` name, which RFC
-2606 reserves so no resolver can ever answer it, and no port is exposed to anything. A gate
-that needed the deployment's real password could not run on a pull request at all, and one
-that reddened on somebody else's outage is a gate everybody learns to ignore.
-
-Two properties matter and are easy to lose, so they are stated where they can be checked:
-
-* Failures leave through SystemExit, never `assert` — on both sides of the split. Asserts
-  vanish under PYTHONOPTIMIZE=1, which would silently turn this gate permanently green.
-* Every check runs before anything is reported, so one run shows the full extent of the
-  breakage instead of only the first broken thing. A check that CANNOT run reports itself as
-  FAILED; it is never quietly skipped, which is the classic way a gate keeps reporting success
-  while proving less and less. The probe's own report lines are parsed back into this gate's
-  report, so a failure inside the container is one row in the same list as a failure outside
-  it.
+* Failures leave through SystemExit, never `assert` (asserts vanish under PYTHONOPTIMIZE=1),
+  on both sides of the split.
+* Every check runs before anything is reported, and a check that cannot run reports itself as
+  FAILED, never skipped. The probe's report lines are merged into this gate's report.
 """
 
 import json
@@ -114,20 +56,13 @@ IMAGE_ENV = "SMOKE_IMAGE"
 # Base name for every container this gate starts. The workflows put the run id in it, because
 # the runner has a single docker daemon shared by every repository in the fleet and two
 # concurrent runs must not collide on a name.
-# Required, exactly like the tag above, and for two reasons that both end in silence rather
-# than in an error — see the message in main() where it is enforced.
+# Required, like the tag above; see main() for why.
 NAME_ENV = "SMOKE_NAME"
 
-# The short-lived guard container is named too, not left to docker's random name generator, and
-# the reason is the one case that matters: `--rm` fires when a container EXITS, and a container
-# that hangs never does. `subprocess` hitting its timeout kills the docker CLIENT on the
-# runner; the container it started stays behind on the shared daemon. With no name nobody could
-# ever remove it — not remove_container() here, not the workflow's `if: always()` step, because
-# neither would know what to remove — and it would go on pinning the image, so the
-# `docker rmi` at the end of the job would fail too, be swallowed by its `|| true`, and leave
-# both a container and a few hundred MB of image on the daemon the whole fleet shares.
-# Kept in step with the suffix list in both workflows' cleanup steps: if you move one, move the
-# other.
+# The short-lived guard container is named too: `--rm` fires only when a container exits, and a
+# subprocess timeout kills the docker client, not the container. The name lets
+# remove_container() and the workflows' `if: always()` cleanup remove a hung guard, which would
+# otherwise also pin the image. Kept in step with the suffix list in both workflows' cleanup steps.
 GUARD_SUFFIX = "-guard"
 
 # The Dockerfile's WORKDIR, its CMD, and where the built frontend lands. Hardcoded rather than
@@ -146,19 +81,14 @@ INDEX_PATH = "/app/static/index.html"
 REQUIRED_FIELDS = ["auth_password", "mqtt_host"]
 
 # The environment the long-lived container runs with. Every value is invented here:
-#   * AUTH_PASSWORD is what the probe logs in with, so the gate needs no real credential and can
-#     run on a pull request. The probe reads it back out of its own environment rather than
-#     carrying a second copy — see the note above the PROBE constant;
-#   * MQTT_HOST points at a `.invalid` name, reserved by RFC 2606, so DNS cannot resolve it and
-#     the container cannot reach a real broker even by accident. That is what makes check (f)
-#     decidable rather than dependent on whether some broker happens to be reachable;
-#   * COOKIE_SECURE=false because `cookie_secure` defaults to True, and `http.cookiejar` — like
-#     a browser — refuses to SEND a Secure cookie over http. Without it the login chain would
-#     break on a perfectly healthy image, in a way that reads like broken authentication;
-#   * APP_TITLE is deliberately NOT the default "Z2M Floorplan": the probe reads it back out of
-#     /api/info, and a value equal to the default would prove nothing at all, since the response
-#     would be identical whether the variable arrived or was silently dropped. The probe
-#     refuses to run that check against the default value, so this cannot decay unnoticed.
+#   * AUTH_PASSWORD is what the probe logs in with (read back from its own environment), so no
+#     real credential is needed and the gate can run on a pull request;
+#   * MQTT_HOST is a `.invalid` name (RFC 2606), so no real broker is reachable and check (f)
+#     is decidable;
+#   * COOKIE_SECURE=false because `cookie_secure` defaults to True and `http.cookiejar`, like a
+#     browser, will not send a Secure cookie over http;
+#   * APP_TITLE differs from the default "Z2M Floorplan" so the /api/info check proves the
+#     variable arrived; the probe refuses to run that check against the default.
 SMOKE_PASSWORD = "smoke-not-a-real-password"
 UNREACHABLE_MQTT_HOST = "mqtt.smoke.invalid"
 SMOKE_TITLE = "smoke-app-title-4f2a"
@@ -177,40 +107,28 @@ RECONNECT_MARKER = "Reconnecting in"
 # harmless; that is the direction to be wrong in, and it is cheap to look at.
 TRACEBACK_MARKER = "Traceback (most recent call last)"
 
-# Printed by the probe on its last line and nowhere else. DECLARED TWICE — here and again
-# inside the PROBE text — and the two have to keep agreeing. The duplication is deliberate:
-# interpolating it into the probe would mean `.format()` on a body full of format calls of its
-# own, or `%`-substitution, which would quietly turn the probe into a template that no longer
-# runs as-is — and being able to paste that block into a container by hand and have it work is
-# most of why it is a plain string. A drift costs a false RED (the outer half reports a probe
-# that never finished), never a false green.
+# Printed by the probe on its last line. Declared twice — here and inside the PROBE text — and
+# the two must agree: the probe stays a plain string (no templating) so it can be pasted into a
+# container by hand. A drift causes a false red (a probe that never finished), never a false green.
 PROBE_MARKER = "smarthome_floorplan smoke probe ok"
 
 # The prefix put in front of every row the probe reported, so the merged report says where each
-# verdict was decided. Without it a reader of 30 result lines cannot tell which of them were
-# taken from inside the container and which from the runner, and that distinction is exactly
-# what the failure this file was rewritten for turned on.
+# verdict was decided: inside the container or on the runner.
 PROBE_ROW_PREFIX = "[in-container] "
 
-# Bounds. Every docker call gets one, because a gate that hangs is worse than a gate that
-# fails: it holds a slot on a runner the whole fleet queues for until the step timeout kills it,
-# and a killed step never runs its cleanup.
-# The numbers are generous against the real cost — this image starts and answers in a couple of
-# seconds — and are sized for a shared runner under load right after a build. Their worst-case
-# SUM is what the smoke step's `timeout-minutes` in both workflows has to exceed, so it is
-# spelled out here, in the order the calls actually happen:
+# Bounds. Every docker call gets one: a hung gate holds a shared runner slot until the step
+# timeout kills it, and a killed step never runs its cleanup. The numbers are generous (the image
+# starts in seconds) for a loaded runner. Their worst-case sum, in call order, is what the smoke
+# step's `timeout-minutes` in both workflows must exceed:
 #   30 (inspect config) + 30 (rm guard) + 90 (guard run) + 30 (rm main) + 60 (run -d)
 #   + 210 (docker exec: the HTTP probe) + 60 (docker exec: the static file on disk)
 #   + 30 (inspect state) + 45 (reconnect poll: 30 budget + one 15 s `docker logs` in flight)
 #   + 30 (rm main, in the finally)
 #   = 615 s, a little over 10 minutes. Both workflows allow 12.
-# PROBE_TIMEOUT is the one number here that is not arbitrary: the probe documents its OWN
-# worst case as ~150 s (a 65 s readiness poll, then 15 HTTP requests bounded at 5 s each), so
-# 210 leaves it a full minute of headroom for a slow `docker exec` on a loaded daemon while
-# still fitting the sum above inside the step timeout.
-# Two of these `rm`s are pre-run cleanups: every container this gate starts is removed by name
-# before it is started, so a re-run from the UI — which keeps the same run id, hence the same
-# $SMOKE_NAME — cannot die on "name already in use".
+# PROBE_TIMEOUT covers the probe's own worst case of ~150 s (a 65 s readiness poll, then 15 HTTP
+# requests at 5 s each) with a minute of headroom.
+# Every container is removed by name before it is started, so a UI re-run (same run id, same
+# $SMOKE_NAME) cannot fail on "name already in use".
 INSPECT_TIMEOUT = 30
 REMOVE_TIMEOUT = 30
 GUARD_TIMEOUT = 90
@@ -232,14 +150,9 @@ RECONNECT_PAUSE = 0.5
 # when something loops, and an unbounded dump would bury the verdict.
 EXCERPT_CHARS = 4000
 
-# Run inside the container with `docker exec`, to answer the one question about the filesystem
-# that HTTP cannot: is the built frontend actually on disk where the app serves it from. The
-# probe's own asset checks would already catch a missing bundle — StaticFiles answers a miss
-# with its own 404 — so this is not the only line of defence and is not pretending to be. What
-# it adds is a source of truth that does not go through the HTTP layer at all (it still says
-# something useful when uvicorn never came up), and the file's SIZE, which no request for `/`
-# can report. Printed as one JSON line so a failure carries the directory listing that explains
-# it.
+# Run inside the container with `docker exec`: is the built frontend on disk where the app
+# serves it from. It complements the probe's asset checks with a verdict that does not depend on
+# uvicorn being up, plus the file's size. Printed as one JSON line carrying the directory listing.
 STATIC_PROBE = (
     "import json, os; "
     "index = {index!r}; "
@@ -252,23 +165,15 @@ STATIC_PROBE = (
 ).format(index=INDEX_PATH, static=STATIC_DIR)
 
 
-# The program fed to `python -u -` inside the container under test. It lives here as a string
-# rather than as a second file so that this gate stays one artifact: the workflows already pass
-# it nothing but an image tag and a container name, and a second file is a second thing to
-# forget to copy when this repo's CI is cloned into the next one.
+# The program fed to `python -u -` inside the container under test, kept as a string so the gate
+# stays one file.
 #
-# `-u` is not decoration: this stdout is a pipe, and CPython block-buffers those. A normal exit
-# flushes (SystemExit included, so a self-reported failure is never lost), but a probe killed by
-# PROBE_TIMEOUT would otherwise take every line it had already printed down with it — in exactly
-# the run whose output is the only thing left to diagnose from.
+# `-u`: stdout is a pipe, and a probe killed by PROBE_TIMEOUT would otherwise lose its buffered
+# output.
 #
-# It takes NO parameters. Everything it needs is already in the container's environment, because
-# `docker exec` runs with the environment the container was created with: AUTH_PASSWORD and
-# APP_TITLE are the very values the outer half passed to `docker run`, so the probe compares
-# what the app ANSWERS against what the container was actually GIVEN, rather than against a
-# second copy of a constant that could drift from it. The only thing declared on both sides is
-# PROBE_MARKER, and the note on it above explains why that one is copied rather than
-# interpolated.
+# It takes no parameters: `docker exec` runs with the container's environment, so AUTH_PASSWORD
+# and APP_TITLE are the very values passed to `docker run`, and the probe compares what the app
+# answers against them. Only PROBE_MARKER is declared on both sides (see above).
 PROBE = r'''
 """Runs INSIDE a container of the smarthome_floorplan image, fed to `python -u -` over stdin.
 
@@ -946,24 +851,14 @@ def check_image_contract(image):
 def check_missing_env_guard(image, name):
     """(a) Run the image with NO environment at all: it must die, and name both variables.
 
-    This is one of the checks that cannot live inside a container, and the one that most
-    directly describes a real deployment failure — the stack redeployed without AUTH_PASSWORD.
-    The mechanism is `Settings()` at the bottom of server/src/settings.py: it runs at import
-    time, `auth_password` and `mqtt_host` have no defaults, so pydantic raises a ValidationError
-    before uvicorn is ever reached.
+    `Settings()` at the bottom of server/src/settings.py runs at import time, and
+    `auth_password` / `mqtt_host` have no defaults, so pydantic raises before uvicorn starts.
+    This depends on the image carrying no `.env` (`SettingsConfigDict` names one): the final
+    Dockerfile stage copies only requirements.txt, main.py, src/ and the built frontend, and
+    `.dockerignore` lists `.env`.
 
-    That it fires at all depends on the image carrying no `.env` file — `SettingsConfigDict`
-    names one — and it does not: the Dockerfile's final stage copies only requirements.txt,
-    main.py, src/ and the built frontend, and `.dockerignore` lists `.env` besides. A future
-    Dockerfile that copied the repo root wholesale would break this guard in production without
-    breaking a single test, and this check is what would notice.
-
-    The image's own CMD is kept — no `-e`, no override. That is safe to run to completion here
-    precisely because the guard makes it terminate on its own; there is no restart loop inside
-    this image to hang on.
-
-    `--rm` AND a name: the flag covers the container that exits, the name covers the one that
-    does not. See GUARD_SUFFIX above for why the second half is not redundant.
+    The image's own CMD is kept; the guard makes it terminate on its own. `--rm` covers the
+    container that exits, the name covers the one that does not (see GUARD_SUFFIX).
     """
     rows = []
     target = "`docker run --rm {}` with no environment at all".format(image)
@@ -983,15 +878,9 @@ def check_missing_env_guard(image, name):
         return rows, output
     rows.append(("{} exits non-zero (got {})".format(target, status), None))
 
-    # A non-zero exit on its own is NOT enough, and this is the whole reason the output is
-    # matched too: a typo in an import, a syntax error, a missing wheel — all of them exit
-    # non-zero, and all of them would make this check pass while proving nothing about the
-    # guard. Pydantic's ValidationError names the FIELDS it is missing, one per line, and those
-    # names are the contract with the deployment.
-    # One row per variable, not one row for both: a guard that lost `mqtt_host` (say, by someone
-    # giving it a default "localhost") would still fire on `auth_password`, and a single
-    # combined check would go on reporting success for a service that now silently points its
-    # broker connection at itself.
+    # A non-zero exit alone is not enough (an import typo or a missing wheel also exits
+    # non-zero), so the output must name the missing fields. One row per variable, so a guard
+    # that lost one field (e.g. `mqtt_host` given a default) still fails.
     for field in REQUIRED_FIELDS:
         rows.append((
             "...and its output names the missing field {!r}".format(field),
@@ -1006,16 +895,11 @@ def check_missing_env_guard(image, name):
 def start_container(image, name):
     """Start the long-lived container everything else runs against.
 
-    NO PORT IS PUBLISHED, and that is the correction this whole file was restructured around:
-    the job runs inside act_runner's container while docker talks to the host's daemon, so a
-    published port lands on the HOST's loopback and is unreachable from here. Nothing outside
-    the container needs to reach the app — the probe runs inside it — so nothing is exposed at
-    all, which as a bonus keeps the smoke container off every interface on the runner host for
-    its lifetime.
+    No port is published: the job runs inside act_runner's container while docker talks to the
+    host's daemon, so a published port would be unreachable; the probe runs inside instead.
 
-    Started with the image's own CMD — no `--entrypoint`, which does not merely replace the
-    entrypoint but also DROPS the image's CMD, making "does the image's own command bring the
-    app up" unanswerable, and that is most of what the checks after this one are about.
+    Started with the image's own CMD: `--entrypoint` would also drop the CMD, and whether the
+    image's own command brings the app up is what the later checks are about.
     """
     rows = []
     target = "`docker run -d` starts a container of {}".format(image)
@@ -1231,17 +1115,9 @@ def main():
         raise SystemExit(1)
     name = os.environ.get(NAME_ENV)
     if not name:
-        # No default here either, and this one is worth spelling out because a default would not
-        # fail — it would work, quietly and wrongly, in two ways at once.
-        # First, the cleanup: the workflow's `if: always()` step removes `<name>` and
-        # `<name>-guard`, and it builds those names from the SAME variable. A dropped or
-        # misspelled `env:` entry would leave this script naming its containers after the
-        # fallback while the cleanup step went looking for the run-id ones, found nothing, and
-        # swallowed the miss in its `|| true` — the gate stays green and the leak is permanent.
-        # Second, collisions: the runner runs one docker daemon for every repository in the
-        # fleet, so a constant fallback means two concurrent runs pick the SAME name — and
-        # remove_container() below would then delete the other run's live container out from
-        # under it.
+        # No default: the workflow cleanup removes `<name>` and `<name>-guard` built from the
+        # same variable, so a fallback name would leak containers past it, and on the shared
+        # daemon two concurrent runs would collide and remove each other's containers.
         print("{} is not set: this gate names every container it starts after it, and a default "
               "would both hide containers from the workflow's cleanup step and make two "
               "concurrent runs collide on one name".format(NAME_ENV))

@@ -1,40 +1,17 @@
 name: Docker Image CI
 
-# No `pull_request` trigger here on purpose. This workflow pushes :latest to the Gitea
-# registry, and :latest is the tag production follows: the deployed container carries
-# `io.portainer.update.enable=true` (see docker-compose.yml), so Portainer's own image updater
-# polls that tag and redeploys whatever lands on it. A build off a PR branch must never be able
-# to move it. PRs are covered by tests.yml, which runs the identical tests, builds the identical
-# image and runs the identical gate, but never logs in and never pushes.
+# No `pull_request` trigger: this workflow pushes :latest, the tag production follows (the
+# container carries `io.portainer.update.enable=true`, so Portainer redeploys whatever lands on
+# it). PRs are covered by tests.yml, which runs the same tests, image build and gate but never
+# logs in or pushes.
 #
-# That is also what makes the gate below load-bearing rather than decorative: nobody presses a
-# button between `docker push` and the rollout, so the smoke test is the last point at which a
-# broken image can still be stopped.
+# Nobody approves anything between `docker push` and the rollout, so the smoke gate is the last
+# point where a broken image can be stopped. Order: tests -> build -> smoke -> login -> push
+# :<sha> then :latest.
 #
-# The workflow this replaces — .github/workflows/ghcr-check-publish.yml, pushing
-# `ghcr.io/vvzvlad/smarthome_floorplan` — got four things wrong, and they are worth naming
-# because this file is the fix for each:
-#   * it had NO gate between building and publishing. It ran the backend tests (which is more
-#     than most of the fleet's old workflows did), then a separate job checked out, built and
-#     pushed — so nothing ever looked at the ARTEFACT. Everything the tests prove, they prove
-#     about a checkout: they never once start the image, and the frontend was not tested at
-#     all, so a stage-one build that silently produced an empty `dist` shipped a blank page
-#     with a green tick on it;
-#   * it pushed :latest FIRST and :<sha> second, so a push that failed half-way left production
-#     running a commit whose immutable twin — the only rollback point — never reached the
-#     registry;
-#   * it logged in to the registry BEFORE building, i.e. before running arbitrary RUN
-#     instructions on a self-hosted runner shared with every other repository;
-#   * it ran on `pull_request` as well as push. The push step did carry
-#     `if: github.event_name != 'pull_request'`, so a PR did not publish — but it still logged
-#     in to the registry with a PR's credentials and still built, and a guard written as an
-#     `if:` on one step is one edit away from not being there.
-#
-# It also installed python with `actions/setup-python`, which is deliberately absent here and
-# in tests.yml: that action is unverified on this runner, and a setup action that quietly does
-# not work produces a job that passes having checked nothing at all. Both test jobs below run
-# inside containers started by the same docker the build uses, so "the tests ran" and "docker
-# works on this runner" are the same statement.
+# No `actions/setup-python`: it is unverified on this runner. Both test jobs run inside
+# containers started by the same docker the build uses, so a passing test job also proves
+# docker works on the runner.
 on:
   workflow_dispatch:
   push:
@@ -59,11 +36,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The two test jobs are separate rather than two steps of one job so that a backend failure
-  # and a frontend failure are reported independently and can be re-run independently — and so
-  # that neither hides behind the other, which is what sequential steps in one job do. They
-  # cost two of the shared runner's capacity slots while they run; that is the trade, and it is
-  # bounded by their timeouts below.
+  # Two separate test jobs so backend and frontend failures are reported and re-run
+  # independently.
   backend-tests:
     runs-on: ubuntu-latest
     # The runner is shared by every repository in the fleet, so a hung step does not just stall
@@ -88,27 +62,15 @@ jobs:
       run: |
         set -e
         set -o pipefail
-        # The workspace is streamed into the container as a tar over stdin rather than
-        # bind-mounted, and that is not a stylistic choice. This job runs INSIDE act_runner's
-        # own job container, while `docker` talks to the HOST's daemon through the mounted
-        # socket — so a `-v "$PWD:/src"` would ask the host to mount a path that means
-        # something entirely different there, or nothing at all, depending on how the runner
-        # was configured to hold the workspace. A tar over stdin is correct in every one of
-        # those configurations, and it also keeps the container from writing __pycache__ and
-        # .pytest_cache back into the checkout as root.
-        # `.git` is excluded because nothing in the test suite reads it and it is the largest
-        # thing in the tree.
-        # `--pull always`: unlike GitHub's ephemeral runners this daemon is persistent, so
-        # without it a once-pulled python:3.11-slim would sit in its cache for months and the
-        # tests would run against an unpatched base — the same reason `docker build --pull`
-        # carries the flag.
-        # The three variables are what `server/src/settings.py` needs to be importable at all:
-        # AUTH_PASSWORD and MQTT_HOST have no defaults, and COOKIE_SECURE has to be false
-        # because `cookie_secure` defaults to True and Starlette's TestClient speaks plain
-        # http, where a Secure cookie is issued and then dropped. server/tests/conftest.py
-        # sets the same three with `setdefault`, so they are belt and braces — and they are
-        # written out here anyway, because they are the contract the deployment has to satisfy
-        # and a conftest is free to stop defaulting them tomorrow.
+        # The workspace is streamed in as a tar over stdin, not bind-mounted: this job runs
+        # inside act_runner's job container while `docker` talks to the host's daemon, so a
+        # `-v "$PWD:/src"` path would mean something else (or nothing) on the host. It also
+        # keeps root-owned __pycache__ out of the checkout. `.git` is not needed by the tests.
+        # `--pull always`: the daemon is persistent, so a cached base image would go unpatched.
+        # The three variables make `server/src/settings.py` importable: AUTH_PASSWORD and
+        # MQTT_HOST have no defaults, and COOKIE_SECURE must be false because Starlette's
+        # TestClient speaks plain http, where a Secure cookie is dropped. conftest.py sets the
+        # same with `setdefault`; they are spelled out here as the deployment contract.
         tar -cf - --exclude=./.git . | docker run --rm -i --pull always \
           -e AUTH_PASSWORD=test-password \
           -e MQTT_HOST=localhost \
@@ -137,16 +99,10 @@ jobs:
       run: |
         set -e
         set -o pipefail
-        # Same tar-over-stdin reasoning as the backend job above — see the comment there.
-        # `npx vitest run` rather than `npm test` so the command is visible here; they are the
-        # same thing (package.json's "test" script is `vitest run`).
-        # The playwright suite in e2e/ is deliberately NOT run, and its absence is a decision
-        # rather than an oversight: it needs real browsers, which means either a
-        # `playwright install` of a few hundred MB on every run of a runner the whole fleet
-        # shares, or a `mcr.microsoft.com/playwright` image of comparable size. It is minutes
-        # of download for three specs, on a gate that is supposed to answer quickly enough
-        # that people wait for it. vitest.config.ts already excludes `e2e/**` from this run, so
-        # nothing here silently half-runs them either.
+        # Same tar-over-stdin reasoning as the backend job above.
+        # `npx vitest run` is what package.json's "test" script runs.
+        # The playwright suite in e2e/ is not run: it needs real browsers (a few hundred MB per
+        # run on the shared runner) for three specs. vitest.config.ts excludes `e2e/**`.
         tar -cf - --exclude=./.git . | docker run --rm -i --pull always \
           -e CI=true \
           "$FRONTEND_IMAGE" \
@@ -168,14 +124,9 @@ jobs:
     # that dies mid-push leaves the smoke containers and a few hundred MB of image sitting on
     # the daemon the entire fleet shares.
     timeout-minutes: 55
-    # Job-level, so the smoke step and the cleanup step below cannot disagree about it. They
-    # are the two ends of the same mechanism — ci/smoke.py names its two containers after this,
-    # the cleanup step removes them by the same name — and written as two separate literals
-    # they would go on looking correct while one of them was edited, turning the cleanup into a
-    # step that removes nothing and reports success.
-    # The run id is what keeps concurrent runs on this shared daemon from colliding, and
-    # ci/smoke.py refuses to start without this variable rather than falling back to a
-    # constant, which would reintroduce exactly that collision.
+    # Job-level, so the smoke step (ci/smoke.py names its containers after it) and the cleanup
+    # step (removes them by that name) cannot disagree. The run id keeps concurrent runs on the
+    # shared daemon from colliding; ci/smoke.py refuses to start without this variable.
     env:
       SMOKE_NAME: smarthome-floorplan-smoke-${{ github.run_id }}
     steps:
@@ -183,22 +134,12 @@ jobs:
 
     - name: Compute image tags
       id: tags
-      # main -> :latest + :<sha> (production follows :latest); ANY other branch -> :<branch>.
-      # The branch name in the check below and the `branches:` filter at the top of this file
-      # must both name the repo's REAL default branch, and they move together or not at all.
-      # Renaming that branch invalidates both of them — and, outside this file, the
-      # `pull_request` filter in tests.yml. Neither mismatch fails loudly, which is the danger:
-      # a `branches:` filter naming a branch that does not exist stops pushes from triggering
-      # this workflow at all — only a manual dispatch still runs it, and it still publishes —
-      # while a wrong name in the check below leaves it building happily on every push and
-      # never once producing the :latest that production actually pulls. Neither puts anything
-      # red in the run list, which is what makes both indistinguishable from a gate that
-      # passes.
-      # Only main is pushed to by the trigger above, but workflow_dispatch can be fired off any
-      # ref, so the else branch still has to be correct.
-      # Do NOT hardcode a fixed tag in the else branch: a build off a side branch would then
-      # silently overwrite the tag production deploys from — one typo away from shipping
-      # unreviewed code straight into the running service.
+      # main -> :<sha> + :latest (production follows :latest); any other branch -> :<branch>.
+      # The `main` check below, the `branches:` filter at the top and the `pull_request` filter
+      # in tests.yml must all name the real default branch; a mismatch fails silently (no
+      # trigger, or no :latest ever produced).
+      # workflow_dispatch can run off any ref, so the else branch must never produce a fixed
+      # tag production deploys from.
       env:
         # Passed through the environment instead of being interpolated into the script text:
         # git allows `$`, backticks, quotes and parentheses in branch names, so a branch like
@@ -208,23 +149,15 @@ jobs:
         REPO: ${{ github.repository }}
         SHA: ${{ github.sha }}
       run: |
-        # Gitea allows uppercase letters in repository names, docker does not accept them in an
-        # image path — a repo like `SmartHome_Floorplan` would fail the build with `invalid
-        # reference format`, so lowercase it here. Owner and name both come from $REPO, which
-        # makes this `gitea.vvzvlad.xyz/projects/smarthome_floorplan` and keeps the file free of
-        # a hand-written path that could drift from where the repo lives. The GHCR workflow
-        # this replaces derived its path the same way — `ghcr.io/` plus the same
-        # github.repository expression — which is why docker-compose.yml, whose `image:` line
-        # WAS hand-written, still pointed at ghcr.io long after the move.
+        # Gitea allows uppercase in repository names, docker image paths do not, so lowercase
+        # $REPO. Deriving the path from $REPO keeps it in step with where the repo lives.
         IMAGE="gitea.vvzvlad.xyz/$(printf '%s' "$REPO" | tr 'A-Z' 'a-z')"
         if [ "$REF_NAME" = "main" ]; then
           # Tag ORDER matters and must not be "tidied up": the push step iterates over $TAGS
           # left to right, so :latest is pushed LAST and acts as the commit of the whole
           # publication. If :<sha> fails to push (network, registry quota, disk), the run stops
-          # before :latest moves and production keeps running the previous image. The reverse
-          # order — which is what the GHCR workflow this replaces did — publishes a :latest
-          # that the updater deploys while its immutable :<sha> twin, the only rollback point,
-          # never made it to the registry.
+          # before :latest moves and production keeps running the previous image; the reverse
+          # order could deploy a :latest whose immutable :<sha> rollback point never arrived.
           echo "tags=$IMAGE:$SHA $IMAGE:latest" >> "$GITHUB_OUTPUT"
           # The smoke gate needs ONE unambiguous tag out of the list above. The :<sha> one is
           # it — :latest is a moving target shared with whatever ran before, :<sha> can only
@@ -269,59 +202,32 @@ jobs:
       run: |
         tag_args=""
         for tag in $TAGS; do tag_args="$tag_args --tag $tag"; done
-        # --pull is required here: unlike GitHub's ephemeral runners, this runner is
-        # self-hosted with a persistent docker daemon, so without the flag the once-pulled
-        # node:22-alpine and python:3.11-slim would sit in its cache for months and every build
-        # would inherit two unpatched base layers.
-        # Note that this IS a BuildKit build even though no `docker buildx` appears on the
-        # line: BuildKit has been `docker build`'s default since Engine 23.0. It caches into
-        # its own builder store, which is why the cleanup step at the end of this job cannot
-        # reclaim everything — see the caveat there.
+        # --pull: the self-hosted daemon is persistent, so cached node:22-alpine and
+        # python:3.11-slim bases would otherwise go unpatched.
+        # This is a BuildKit build (the `docker build` default since Engine 23.0); its cache
+        # lives in a separate builder store the cleanup step cannot reclaim.
         docker build --pull . --file Dockerfile $tag_args
 
     - name: Smoke-test the built image
-      # The gate. It sits BETWEEN build and push on purpose: a red smoke means nothing ever
-      # reaches the registry, so production keeps running the previous image. The GHCR workflow
-      # this replaces had nothing in this position at all — its tests ran against a checkout in
-      # a different job, and the image was pushed by the step after the one that built it.
+      # The gate sits between build and push: a red smoke means nothing reaches the registry
+      # and production keeps the previous image.
       #
-      # ci/smoke.py is split in two, and the split is worth knowing before editing either half.
-      # It runs on the RUNNER and drives `docker` itself, because several of its checks are
-      # about the container as an object — how the image behaves with no environment, what
-      # `docker inspect` says its CMD and WORKDIR are, whether the container is still alive at
-      # the end, and what it wrote to its log — and none of those can be answered from a process
-      # already running inside it. Everything that speaks HTTP lives in a probe it feeds to
-      # `docker exec -i <name> python -u -`, so those requests are made from INSIDE the
-      # container, against 127.0.0.1:8000 where uvicorn actually listens.
+      # ci/smoke.py runs on the runner and drives `docker` for the container-level checks (no
+      # environment, CMD/WORKDIR, still alive, logs); the HTTP checks run in a probe fed to
+      # `docker exec -i <name> python -u -`, against 127.0.0.1:8000 inside the container.
       #
-      # NO PORT IS PUBLISHED, and that is not an omission. This job runs inside act_runner's own
-      # job container while `docker` drives a daemon outside it, so a published port lands in
-      # that daemon's network namespace and is not reachable from here — the first version of
-      # this gate did publish one, and every HTTP check came back `Connection refused` against a
-      # container that was up and serving. It is the same reasoning that makes the test jobs
-      # above stream the workspace in over stdin instead of bind-mounting it.
+      # No port is published: this job runs inside act_runner's job container while `docker`
+      # drives a daemon outside it, so a published port would not be reachable from here.
       #
-      # `python3` is present in the runner's job image `docker.gitea.com/runner-images:
-      # ubuntu-latest`; note that a bare `python` is NOT, which is why the command below spells
-      # out python3. Inside the container it is the other way round — the image's own
-      # interpreter is `python` — and ci/smoke.py invokes it accordingly.
+      # The runner image has `python3` but no bare `python`; inside the container it is `python`.
       #
-      # The gate holds no credential and reaches no external service: it invents its own
-      # AUTH_PASSWORD, points MQTT_HOST at a `.invalid` name that RFC 2606 guarantees can never
-      # resolve, and exposes nothing to anything. Its central premise is that the app survives
-      # an unreachable broker — `mqtt_listener_loop()` is a background task with a reconnect
-      # loop — and ci/smoke.py checks that premise explicitly rather than assuming it, so the
-      # day it stops being true the failure says so in one line. Both containers it starts carry
-      # $SMOKE_NAME, so concurrent runs on the shared daemon cannot collide and anything left
-      # behind is removable by name.
+      # The gate holds no credential and reaches no external service: it invents AUTH_PASSWORD
+      # and points MQTT_HOST at a `.invalid` name (RFC 2606). It relies on the app surviving an
+      # unreachable broker and checks that explicitly.
       #
-      # Step-level `timeout-minutes`, the one act_runner is known to enforce (the job-level one
-      # is only the outer bound). 12 minutes is set against ci/smoke.py's OWN worst case, which
-      # the script documents and sums from its individual bounds: 615 s — a little over 10
-      # minutes — if every docker call it makes runs out its budget, the probe included. In
-      # practice the whole gate is well under a minute. Being killed BY this timeout is what
-      # the margin is for: the script's own container cleanup would not run, and the
-      # `if: always()` step below is what catches that.
+      # Step-level `timeout-minutes` is the one act_runner enforces. 12 minutes covers
+      # ci/smoke.py's documented worst case of 615 s; if this timeout kills the step, the
+      # `if: always()` cleanup below removes the containers.
       timeout-minutes: 12
       env:
         # SMOKE_NAME is not here: it is set once at job level, so this step and the cleanup
@@ -336,13 +242,9 @@ jobs:
         python3 ci/smoke.py
 
     - name: Log in to the Gitea container registry
-      # Deliberately placed here and not at the top of the job: `docker build` runs arbitrary
-      # RUN instructions from the Dockerfile — including an `npm ci` that executes whatever
-      # install scripts the dependency tree carries — and the smoke step runs the image's own
-      # code, both on a self-hosted runner shared with every other repository. Logging in only
-      # now keeps the registry credentials out of the job's docker config for the whole
-      # build-and-test stretch, which is precisely what the GHCR workflow this replaces did not
-      # do.
+      # Placed after build and smoke: `docker build` runs arbitrary RUN instructions (including
+      # npm install scripts) and the smoke step runs the image's code on a shared runner, so
+      # registry credentials stay out of the docker config until now.
       uses: docker/login-action@v4
       with:
         registry: gitea.vvzvlad.xyz
@@ -362,47 +264,21 @@ jobs:
         # `$TAGS` unquoted so it word-splits into items.
         TAGS: ${{ steps.tags.outputs.tags }}
       run: |
-        # `set -e` makes this step's central guarantee local to this step. The tag order
-        # computed above is only worth anything if a failed `:<sha>` push STOPS the loop before
-        # it reaches `:latest` — otherwise this file reproduces exactly the tag-order fault it
-        # names the old GHCR workflow for: a moving `:latest` whose immutable twin, the only
-        # rollback point, never reached the registry. WITHOUT this line that stop would rest on
-        # act_runner invoking `run:` as `bash -e {0}` — a property of the runner's job image
-        # and its defaults rather than of this file, and one a different image or a changed
-        # default could silently take away.
+        # `set -e`: a failed `:<sha>` push must stop the loop before `:latest` moves. Explicit
+        # here rather than relying on act_runner's `bash -e {0}` default.
         set -e
-        # Split first, then count what the loop will actually iterate over. Checking the raw
-        # string instead — `[ -n "$TAGS" ]` — tests it BEFORE word splitting, so a value of
-        # nothing but whitespace passes the guard and still yields zero iterations and a green
-        # step, which is the exact outcome this guard exists to forbid. `set --` applies the
-        # same splitting the `for` below does, so `$#` is the number of tags that will really
-        # be pushed.
-        # This is also why there is no `-u` on the `set -e` above: $TAGS is set by this step's
-        # own `env:`, and an expression that resolved to nothing arrives set-but-EMPTY rather
-        # than unset, so `set -u` would never fire on it. The check below is what covers that
-        # case. Without it a `Compute image tags` step that wrote no output would produce a
-        # green push that published nothing, leaving `:latest` on the previous commit's image
-        # while the run reported success — a silent no-op is worse here than a red job, being
-        # indistinguishable from a deploy that worked.
+        # Split first, then count what the loop will iterate over (`[ -n "$TAGS" ]` would pass
+        # whitespace). An empty $TAGS arrives set-but-empty, so `set -u` would not catch it;
+        # this check turns "pushed nothing" into a red job instead of a fake deploy.
         set -- $TAGS
         [ "$#" -gt 0 ] || { echo "No tags to push: the tag-computation step produced no usable output. Refusing to report a successful push that pushed nothing — :latest would stay on the previous image and look deployed." >&2; exit 1; }
         for tag in "$@"; do docker push "$tag"; done
 
     - name: Remove the smoke containers from the runner
-      # `always()`, and before the image cleanup below: this runner has one persistent docker
-      # daemon shared by every repository, so a container left behind by a failed run would sit
-      # there forever — and would also pin the image, making the `docker rmi` in the next step
-      # fail.
-      # ci/smoke.py removes both itself — the guard container before it starts it, the
-      # long-lived one in a `finally` — so on a normal run this is a no-op. It exists for the
-      # run where the step above was killed by its own timeout and never reached any of that.
-      # BOTH suffixes are removed, not just the long-lived container: `--rm` disposes of a
-      # container that EXITED, and the case this step is for is the container that did not.
-      # When ci/smoke.py's own subprocess timeout fires it kills the docker client on the
-      # runner, not the container on the daemon — so a hung guard survives its `--rm` and has
-      # to be removed here, by the name ci/smoke.py gave it for exactly this purpose.
-      # $SMOKE_NAME comes from the job-level `env:` — the same value the smoke step passed to
-      # ci/smoke.py, not a second copy of the expression that could drift from it.
+      # `always()`, and before the image cleanup: the shared daemon is persistent, and a leftover
+      # container would also pin the image and make `docker rmi` fail. ci/smoke.py removes both
+      # containers itself, so this matters when the smoke step was killed by its timeout. Both
+      # suffixes: a hung guard survives its `--rm` when only the docker client is killed.
       if: always()
       run: |
         # The empty suffix is the long-lived container the HTTP checks run against; -guard is
@@ -413,31 +289,16 @@ jobs:
         for suffix in "" -guard; do docker rm -f "$SMOKE_NAME$suffix" || true; done
 
     - name: Remove the built images from the runner
-      # The runner's docker daemon is persistent, so the images built here would otherwise pile
-      # up and grow the disk forever. This step removes ONLY the tags this run created — no
-      # `docker system prune`, which would also wipe the images of every other repo sharing the
-      # same daemon, including containers other jobs are mid-run against.
-      # It does NOT reclaim everything: `docker rmi <tag>` never touches the BuildKit cache
-      # (that lives in a separate builder store and is only freed by `docker builder prune`),
-      # and `--pull` above leaves the previous base images untagged as dangling images whenever
-      # upstream publishes a new node:22-alpine or python:3.11-slim digest. Both need a
-      # separate periodic cleanup on the runner host.
-      # `always()` so the cleanup runs even when the smoke or the push above fails.
+      # Removes only the tags this run created (no `docker system prune`: the daemon is shared).
+      # The BuildKit cache and dangling base images left by `--pull` need a separate periodic
+      # cleanup on the runner host. `always()` so it runs even when smoke or push fails.
       if: always()
       env:
         # Same reasoning as in the build step: pass the tags through the environment, and leave
         # `$TAGS` unquoted so it word-splits into items.
         TAGS: ${{ steps.tags.outputs.tags }}
       run: |
-        # An empty $TAGS is legitimate HERE, unlike in the push step above, and is deliberately
-        # not rejected. It can arise two ways, and neither leaves a tag for this loop to
-        # remove. If `Compute image tags` FAILED, the build step never ran and nothing was
-        # created at all. If it succeeded but wrote no output, the build ran without any
-        # `--tag`, so the image it produced is untagged: dangling, unreachable by name, and
-        # reclaimable only by the periodic prune on the runner host, never by this loop — and
-        # that run still goes red, because the smoke step gets an empty SMOKE_IMAGE and
-        # ci/smoke.py refuses to start.
-        # Do not "fix" this symmetrically with the guard in the push step: there, publishing
-        # nothing while reporting success is a silent deploy failure; here, removing nothing
-        # when there is nothing to remove is the correct outcome.
+        # An empty $TAGS is legitimate here, unlike in the push step: with no tags there is
+        # nothing tagged to remove (and such a run is already red, since ci/smoke.py refuses
+        # an empty SMOKE_IMAGE).
         for tag in $TAGS; do docker rmi "$tag" || true; done
