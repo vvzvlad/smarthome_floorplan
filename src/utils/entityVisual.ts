@@ -7,7 +7,7 @@ import type { EntityConfig, LabelConfig } from '../types/floorplan';
 /**
  * Build the inline style object for an entity overlay in the editor. Mirrors
  * EntityOverlay.vue's styleObject exactly:
- *  - text/number/button/toggle/select/camera entities render the same
+ *  - text/number/button/toggle/select/camera/sensor entities render the same
  *    transparent, bordered move handle (camera also gets its preview width),
  *  - light entities use the offColor (with a '#94a3b8' fallback when the colors
  *    object lacks an offColor), a circle/square borderRadius, opacity, rotation,
@@ -19,7 +19,7 @@ export function entityStyle(
 ): Record<string, string | number> {
   const { shape, style, x, y, type } = entity;
 
-  if (type === 'text' || type === 'number' || type === 'button' || type === 'toggle' || type === 'select' || type === 'camera') {
+  if (type === 'text' || type === 'number' || type === 'button' || type === 'toggle' || type === 'select' || type === 'camera' || type === 'sensor') {
     return {
       left: `${x}%`,
       top: `${y}%`,

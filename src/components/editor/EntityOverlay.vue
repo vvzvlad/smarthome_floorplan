@@ -8,6 +8,7 @@ import { resolveNumberValue, formatNumberDisplay } from '../../utils/numberWidge
 import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
+import { isSensorActive } from '../../utils/sensorWidget';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
 import { cameraImageUrl } from '../../utils/api';
 
@@ -258,6 +259,13 @@ const selectValue = computed(() => {
 });
 const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`);
 
+const sensorOn = computed(() => {
+  if (props.entity.type !== 'sensor' || !props.entity.sensorConfig) return false;
+  const cfg = props.entity.sensorConfig;
+  return isSensorActive(store.entityStates[props.entity.entityId]?.rawPayload, cfg.jsonPath, cfg.onValue);
+});
+const sensorSize = computed(() => `${props.entity.sensorConfig?.size ?? 2.1}cqw`);
+
 </script>
 
 <template>
@@ -289,6 +297,14 @@ const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`
       :style="{ fontSize: selectSize, pointerEvents: 'none' }">
       <span v-for="(opt, i) in entity.selectConfig?.options ?? []" :key="i"
         class="multi-switch-btn" :class="{ active: selectValue === opt.value }">{{ opt.label }}</span>
+    </div>
+    <!-- Sensor entity: the same window icon as the viewer, coloured by the live state -->
+    <div v-else-if="entity.type === 'sensor'" class="sensor-icon"
+      :style="{ fontSize: sensorSize, color: sensorOn ? entity.style.colors.onColor : entity.style.colors.offColor }">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+        <rect x="4" y="3" width="16" height="18" rx="1" fill="currentColor" fill-opacity="0.25" />
+        <path d="M12 3v18M4 12h16" />
+      </svg>
     </div>
     <!-- Camera entity: non-interactive snapshot preview for placement -->
     <div v-else-if="entity.type === 'camera'" class="camera-preview" style="pointer-events: none">

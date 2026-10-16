@@ -2,7 +2,7 @@
 // filtering, numeric-field parsing and default-config seeds can be unit-tested
 // without mounting the component.
 
-import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig, CameraConfig } from '../types/floorplan';
+import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig, CameraConfig, SensorConfig } from '../types/floorplan';
 
 /**
  * Filter a device list by a case-insensitive substring query. An empty query
@@ -81,4 +81,13 @@ export function defaultSelectConfig(): SelectConfig {
  */
 export function defaultCameraConfig(): CameraConfig {
   return { url: '', width: 10 };
+}
+
+/**
+ * Default seed for a sensor-entity config, matching PropertiesPanel.vue's
+ * onTypeChange literal. Seeds a door/window contact: z2m reports
+ * `contact: false` when it is open, so the icon lights up while open.
+ */
+export function defaultSensorConfig(): SensorConfig {
+  return { jsonPath: 'contact', onValue: 'false', size: 2.1 };
 }

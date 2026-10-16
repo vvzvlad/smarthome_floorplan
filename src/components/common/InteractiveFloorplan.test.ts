@@ -211,3 +211,14 @@ describe('InteractiveFloorplan — light click vs long-press', () => {
         expect(wrapper.emitted('entity-long-press')).toBeUndefined()
     })
 })
+
+describe('InteractiveFloorplan — sensor icon', () => {
+    it('takes onColor when the field equals onValue, offColor otherwise', async () => {
+        const e = lightEntity({ id: 's1', entityId: 'window_sensor', type: 'sensor',
+            sensorConfig: { jsonPath: 'contact', onValue: 'false', size: 2.1 } })
+        const w = mountWith([e], { window_sensor: { state: 'off', rawPayload: { contact: false } } })
+        expect(w.find('.sensor-icon').attributes('style')).toContain('rgb(250, 204, 21)')
+        await w.setProps({ entityStates: { window_sensor: { state: 'off', rawPayload: { contact: true } } } })
+        expect(w.find('.sensor-icon').attributes('style')).toContain('rgb(148, 163, 184)')
+    })
+})

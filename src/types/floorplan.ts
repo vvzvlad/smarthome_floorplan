@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select' | 'camera';
+export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select' | 'camera' | 'sensor';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -75,6 +75,12 @@ export interface CameraConfig {
   width: number;   // preview width in % of the floorplan width
 }
 
+export interface SensorConfig {
+  jsonPath: string;  // JSON field of the z2m device state, e.g. "contact"
+  onValue: string;   // the icon shows style.colors.onColor when String(field) equals this, e.g. "false"
+  size: number;      // icon size in cqw
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -92,6 +98,7 @@ export interface EntityConfig {
   toggleConfig?: ToggleConfig;
   selectConfig?: SelectConfig;
   cameraConfig?: CameraConfig;
+  sensorConfig?: SensorConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }

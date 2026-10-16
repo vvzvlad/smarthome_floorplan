@@ -337,6 +337,17 @@ input:focus {
 .multi-switch .multi-switch-btn:hover:not(.active) { background: rgba(0, 0, 0, 0.06); }
 .multi-switch .multi-switch-btn.active { background: #22c55e; color: #ffffff; }
 
+.sensor-icon {
+  pointer-events: none;
+  user-select: none;
+  /* font-size (in cqw) and color (on/off) are set inline per widget */
+}
+.sensor-icon svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
 .camera-preview {
   background: #111;
   min-height: 3cqw; /* keeps an empty/broken preview visible and clickable */

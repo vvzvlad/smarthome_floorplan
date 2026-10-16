@@ -12,6 +12,7 @@ import {
 import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
+import { isSensorActive } from '../../utils/sensorWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
 import { cameraImageUrl } from '../../utils/api';
@@ -277,6 +278,20 @@ function selectOption(entity: EntityConfig, value: string) {
   emit('entity-select', entity.entityId, cfg.writeTopic, value);
 }
 
+function getSensorStyle(entity: EntityConfig) {
+  const cfg = entity.sensorConfig;
+  const on = !!cfg && isSensorActive(props.entityStates[entity.entityId]?.rawPayload, cfg.jsonPath, cfg.onValue);
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 1,
+    fontSize: `${cfg?.size ?? 2.1}cqw`,
+    color: on ? entity.style.colors.onColor : entity.style.colors.offColor,
+  };
+}
+
 function getCameraPositionStyle(entity: EntityConfig) {
   const width = entity.cameraConfig?.width ?? 10;
   return {
@@ -422,6 +437,15 @@ function atMax(entity: EntityConfig): boolean {
                     <button v-for="(opt, i) in entity.selectConfig?.options ?? []" :key="i"
                         class="multi-switch-btn" :class="{ active: getSelectValue(entity) === opt.value }"
                         @click.stop="selectOption(entity, opt.value)">{{ opt.label }}</button>
+                </div>
+
+                <!-- Sensor icons (read-only window glyph coloured by a field of the device state) -->
+                <div v-for="entity in props.config.entities.filter(e => e.type === 'sensor')" :key="entity.id"
+                    class="sensor-icon" :style="getSensorStyle(entity)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+                        <rect x="4" y="3" width="16" height="18" rx="1" fill="currentColor" fill-opacity="0.25" />
+                        <path d="M12 3v18M4 12h16" />
+                    </svg>
                 </div>
 
                 <!-- Camera snapshot previews (loaded once per page load; click opens the live view) -->
