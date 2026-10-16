@@ -213,22 +213,34 @@ describe('InteractiveFloorplan — light click vs long-press', () => {
 })
 
 describe('InteractiveFloorplan — sensor icon', () => {
-    it('takes onColor when the field equals onValue, offColor otherwise', async () => {
-        const e = lightEntity({ id: 's1', entityId: 'window_sensor', type: 'sensor',
-            sensorConfig: { jsonPath: 'contact', onValue: 'false', size: 2.1 } })
-        const w = mountWith([e], { window_sensor: { state: 'off', rawPayload: { contact: false } } })
-        expect(w.find('.sensor-icon').attributes('style')).toContain('rgb(250, 204, 21)')
+    const sensorEntity = (icon = '') => lightEntity({ id: 's1', entityId: 'window_sensor', type: 'sensor',
+        sensorConfig: { jsonPath: 'contact', onValue: 'false', size: 2.1, icon } })
+
+    it('glyph takes onColor when the field equals onValue, offColor otherwise', async () => {
+        const w = mountWith([sensorEntity()], { window_sensor: { state: 'off', rawPayload: { contact: false } } })
+        expect(w.find('.sensor-glyph').attributes('style')).toContain('rgb(250, 204, 21)')
         await w.setProps({ entityStates: { window_sensor: { state: 'off', rawPayload: { contact: true } } } })
-        expect(w.find('.sensor-icon').attributes('style')).toContain('rgb(148, 163, 184)')
+        expect(w.find('.sensor-glyph').attributes('style')).toContain('rgb(148, 163, 184)')
     })
 
     it('is marked unknown (dashed, dimmed) until the field is reported, even with the default grey offColor', async () => {
-        const e = lightEntity({ id: 's1', entityId: 'window_sensor', type: 'sensor',
-            sensorConfig: { jsonPath: 'contact', onValue: 'false', size: 2.1 } })
-        const w = mountWith([e], {})
+        const w = mountWith([sensorEntity()], {})
         expect(w.find('.sensor-icon').classes()).toContain('unknown')
         expect(w.find('.sensor-icon').attributes('style')).toContain('opacity: 0.4')
         await w.setProps({ entityStates: { window_sensor: { state: 'off', rawPayload: { contact: true } } } })
         expect(w.find('.sensor-icon').classes()).not.toContain('unknown')
+    })
+
+    it('masks the glyph with the uploaded icon', () => {
+        const icon = 'data:image/svg+xml;base64,PHN2Zy8+'
+        const glyph = mountWith([sensorEntity(icon)]).find('.sensor-glyph')
+        expect(glyph.attributes('style')).toContain(`mask-image: url("${icon}")`)
+        expect(glyph.classes()).not.toContain('circle')
+    })
+
+    it('without an icon the glyph is an unmasked circle', () => {
+        const glyph = mountWith([sensorEntity()]).find('.sensor-glyph')
+        expect(glyph.attributes('style')).not.toContain('mask-image')
+        expect(glyph.classes()).toContain('circle')
     })
 })

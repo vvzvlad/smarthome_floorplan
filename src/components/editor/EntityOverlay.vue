@@ -8,7 +8,7 @@ import { resolveNumberValue, formatNumberDisplay } from '../../utils/numberWidge
 import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
-import { sensorIconStyle, isSensorKnown } from '../../utils/sensorWidget';
+import SensorIcon from '../common/SensorIcon.vue';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
 import { cameraImageUrl } from '../../utils/api';
 
@@ -259,14 +259,6 @@ const selectValue = computed(() => {
 });
 const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`);
 
-const sensorStyle = computed(() => {
-  const cfg = props.entity.sensorConfig;
-  return sensorIconStyle(store.entityStates[props.entity.entityId]?.rawPayload, cfg?.jsonPath ?? '', cfg?.onValue ?? '', props.entity.style.colors);
-});
-const sensorKnown = computed(() =>
-  isSensorKnown(store.entityStates[props.entity.entityId]?.rawPayload, props.entity.sensorConfig?.jsonPath ?? ''));
-const sensorSize = computed(() => `${props.entity.sensorConfig?.size ?? 2.1}cqw`);
-
 </script>
 
 <template>
@@ -299,14 +291,9 @@ const sensorSize = computed(() => `${props.entity.sensorConfig?.size ?? 2.1}cqw`
       <span v-for="(opt, i) in entity.selectConfig?.options ?? []" :key="i"
         class="multi-switch-btn" :class="{ active: selectValue === opt.value }">{{ opt.label }}</span>
     </div>
-    <!-- Sensor entity: the same window icon as the viewer, coloured by the live state -->
-    <div v-else-if="entity.type === 'sensor'" class="sensor-icon" :class="{ unknown: !sensorKnown }"
-      :style="{ fontSize: sensorSize, ...sensorStyle }">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
-        <rect x="4" y="3" width="16" height="18" rx="1" fill="currentColor" fill-opacity="0.25" />
-        <path d="M12 3v18M4 12h16" />
-      </svg>
-    </div>
+    <!-- Sensor entity: the same glyph as the viewer, coloured by the live state -->
+    <SensorIcon v-else-if="entity.type === 'sensor'" :config="entity.sensorConfig" :colors="entity.style.colors"
+      :raw-payload="store.entityStates[entity.entityId]?.rawPayload" />
     <!-- Camera entity: non-interactive snapshot preview for placement -->
     <div v-else-if="entity.type === 'camera'" class="camera-preview" style="pointer-events: none">
       <img v-if="entity.cameraConfig?.url" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false">

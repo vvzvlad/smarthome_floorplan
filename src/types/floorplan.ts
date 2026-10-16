@@ -79,6 +79,7 @@ export interface SensorConfig {
   jsonPath: string;  // JSON field of the z2m device state, e.g. "contact"
   onValue: string;   // the icon shows style.colors.onColor when String(field) equals this, e.g. "false"
   size: number;      // icon size in cqw
+  icon: string;      // uploaded icon (SVG or PNG) as a data URI, used as a mask tinted by the state colour; '' = none (a circle is shown)
 }
 
 export interface EntityConfig {

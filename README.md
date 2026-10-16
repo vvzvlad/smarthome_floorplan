@@ -27,7 +27,8 @@ image and home-screen icon, and import/export the whole config.
   - **Button** — publish a fixed raw value to a topic on click.
   - **Toggle** — two-state switch over raw on/off values.
   - **Select** — multi-state switch (e.g. AC heat / cool / off) over preset options.
-  - **Sensor** — read-only icon coloured by a JSON field of the device state (e.g. a window contact).
+  - **Sensor** — read-only uploadable icon (monochrome SVG or PNG with transparency), tinted with
+    the on/off colour by a JSON field of the device state (e.g. a window contact).
 - Import/export: download or upload the whole floorplan config as JSON, and download
   the current background image.
 - Custom home-screen icon (uploadable PNG, with a bundled default).

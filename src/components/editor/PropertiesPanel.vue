@@ -6,6 +6,7 @@ import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
 import { sanitizeFilenameBase, triggerDownload } from '../../utils/download';
 import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig, defaultSelectConfig, defaultCameraConfig, defaultSensorConfig } from '../../utils/entityForm';
 import { normalizeImportedConfig } from '../../utils/configMigration';
+import SensorIcon from '../common/SensorIcon.vue';
 const store = useFloorplanStore();
 
 
@@ -343,6 +344,37 @@ function setSensorNum(key: 'size', e: Event) {
         if (n !== null) selectedEntity.value.sensorConfig[key] = n;
     }
 }
+
+const sensorIconInput = ref<HTMLInputElement | null>(null);
+
+function readAsDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function onSensorIconFile(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    const cfg = selectedEntity.value?.sensorConfig;
+    if (!file || !cfg) return;
+    try {
+        // Stored as is (SVG or PNG); the CSS mask fits it into the icon square without cropping.
+        cfg.icon = await readAsDataUrl(file);
+    } catch (e) {
+        console.error('Sensor icon upload failed', e);
+        alert('Failed to load icon');
+    } finally {
+        target.value = '';
+    }
+}
+
+function removeSensorIcon() {
+    if (selectedEntity.value?.sensorConfig) selectedEntity.value.sensorConfig.icon = '';
+}
 </script>
 
 <template>
@@ -644,6 +676,20 @@ function setSensorNum(key: 'size', e: Event) {
                                 @input="setSensorField('onValue', $event)" placeholder="e.g. false">
                         </div>
                         <div class="input-group">
+                            <label>Icon</label>
+                            <div class="app-icon-row">
+                                <!-- Preview: the same glyph as on the map, in the live state colour -->
+                                <SensorIcon :config="selectedEntity.sensorConfig" :colors="selectedEntity.style.colors"
+                                    :raw-payload="store.entityStates[selectedEntity.entityId]?.rawPayload"
+                                    style="font-size: 2rem" />
+                                <div class="app-icon-buttons">
+                                    <button class="secondary small" @click="sensorIconInput?.click()">Upload</button>
+                                    <button v-if="selectedEntity.sensorConfig?.icon" class="secondary small" @click="removeSensorIcon">Remove</button>
+                                </div>
+                            </div>
+                            <input ref="sensorIconInput" type="file" accept="image/svg+xml,image/png" class="hidden-input" @change="onSensorIconFile">
+                        </div>
+                        <div class="input-group">
                             <label>Size</label>
                             <input type="number" :value="selectedEntity.sensorConfig?.size ?? 2.1" step="0.1" min="0.5" @input="setSensorNum('size', $event)">
                         </div>
@@ -661,7 +707,7 @@ function setSensorNum(key: 'size', e: Event) {
                                 <input type="text" v-model="selectedEntity.style.colors.offColor">
                             </div>
                         </div>
-                        <p class="hint small">The icon takes the On color when the JSON field of the device state equals the On value (a door/window contact reports <code>contact: false</code> when open), the Off color otherwise.</p>
+                        <p class="hint small">Upload a monochrome SVG or PNG icon with a transparent background: its shape is tinted with the On/Off colors (without an icon a circle is shown). The icon takes the On color when the JSON field of the device state equals the On value (a door/window contact reports <code>contact: false</code> when open), the Off color otherwise.</p>
                     </template>
 
                     <!-- Light entity config -->

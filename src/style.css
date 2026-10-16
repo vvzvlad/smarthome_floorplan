@@ -340,16 +340,27 @@ input:focus {
 .sensor-icon {
   pointer-events: none;
   user-select: none;
-  /* font-size (in cqw) and color (on/off) are set inline per widget */
+  /* font-size (in cqw), opacity and outline colour are set inline by SensorIcon.vue */
 }
-.sensor-icon svg {
-  display: block;
+.sensor-glyph {
   width: 1em;
   height: 1em;
+  /* background-color (the state colour) and the uploaded icon as mask-image are set inline */
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
 }
-/* state not reported yet: dashed outline, no fill (see sensorWidget.ts) */
-.sensor-icon.unknown svg { stroke-dasharray: 3 2; }
-.sensor-icon.unknown rect { fill-opacity: 0; }
+/* no icon uploaded: a filled circle keeps the entity visible and draggable */
+.sensor-glyph.circle { border-radius: 50%; }
+/* state not reported yet: dashed outline around the dimmed grey glyph (see sensorWidget.ts) */
+.sensor-icon.unknown {
+  outline-style: dashed;
+  outline-width: max(1px, 0.06em);
+  outline-offset: 0.08em;
+}
 
 .camera-preview {
   background: #111;
