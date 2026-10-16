@@ -347,6 +347,9 @@ input:focus {
   width: 1em;
   height: 1em;
 }
+/* state not reported yet: dashed outline, no fill (see sensorWidget.ts) */
+.sensor-icon.unknown svg { stroke-dasharray: 3 2; }
+.sensor-icon.unknown rect { fill-opacity: 0; }
 
 .camera-preview {
   background: #111;

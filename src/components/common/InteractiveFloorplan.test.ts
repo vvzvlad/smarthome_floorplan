@@ -221,4 +221,14 @@ describe('InteractiveFloorplan — sensor icon', () => {
         await w.setProps({ entityStates: { window_sensor: { state: 'off', rawPayload: { contact: true } } } })
         expect(w.find('.sensor-icon').attributes('style')).toContain('rgb(148, 163, 184)')
     })
+
+    it('is marked unknown (dashed, dimmed) until the field is reported, even with the default grey offColor', async () => {
+        const e = lightEntity({ id: 's1', entityId: 'window_sensor', type: 'sensor',
+            sensorConfig: { jsonPath: 'contact', onValue: 'false', size: 2.1 } })
+        const w = mountWith([e], {})
+        expect(w.find('.sensor-icon').classes()).toContain('unknown')
+        expect(w.find('.sensor-icon').attributes('style')).toContain('opacity: 0.4')
+        await w.setProps({ entityStates: { window_sensor: { state: 'off', rawPayload: { contact: true } } } })
+        expect(w.find('.sensor-icon').classes()).not.toContain('unknown')
+    })
 })
