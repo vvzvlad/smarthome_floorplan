@@ -321,9 +321,9 @@ function removeSelectOption(index: number) {
     selectedEntity.value?.selectConfig?.options.splice(index, 1);
 }
 
-function setCameraUrl(e: Event) {
+function setCameraField(key: 'url' | 'offUrl' | 'onUrl' | 'statusUrl', e: Event) {
     if (selectedEntity.value?.cameraConfig) {
-        selectedEntity.value.cameraConfig.url = (e.target as HTMLInputElement).value;
+        selectedEntity.value.cameraConfig[key] = (e.target as HTMLInputElement).value;
     }
 }
 function setCameraNum(key: 'width', e: Event) {
@@ -653,13 +653,29 @@ function removeSensorIcon() {
                         <div class="input-group">
                             <label>Snapshot URL</label>
                             <input type="text" :value="selectedEntity.cameraConfig?.url ?? ''"
-                                @input="setCameraUrl" placeholder="http://10.31.50.106/image.jpg">
+                                @input="setCameraField('url', $event)" placeholder="http://10.31.50.106/image.jpg">
+                        </div>
+                        <div class="input-group">
+                            <label>Off request URL</label>
+                            <input type="text" :value="selectedEntity.cameraConfig?.offUrl ?? ''"
+                                @input="setCameraField('offUrl', $event)" placeholder="http://user:pass@host:8080/cgi-bin/power?cmd=off&off_time=5h">
+                        </div>
+                        <div class="input-group">
+                            <label>On request URL</label>
+                            <input type="text" :value="selectedEntity.cameraConfig?.onUrl ?? ''"
+                                @input="setCameraField('onUrl', $event)" placeholder="http://user:pass@host:8080/cgi-bin/power?cmd=on">
+                        </div>
+                        <div class="input-group">
+                            <label>State request URL</label>
+                            <input type="text" :value="selectedEntity.cameraConfig?.statusUrl ?? ''"
+                                @input="setCameraField('statusUrl', $event)" placeholder="http://user:pass@host:8080/cgi-bin/power">
                         </div>
                         <div class="input-group">
                             <label>Width (%)</label>
                             <input type="number" :value="selectedEntity.cameraConfig?.width ?? 10" step="1" min="1" @input="setCameraNum('width', $event)">
                         </div>
                         <p class="hint small">Fetched through the backend. The map preview loads once per page load; click it to open a view that refreshes every second. Password-protected camera: <code>http://user:pass@host/image.jpg</code> (encode <code>%</code> <code>#</code> <code>/</code> <code>?</code> in the password as <code>%25</code> <code>%23</code> <code>%2F</code> <code>%3F</code>).</p>
+                        <p class="hint small">Off/On/State requests are sent by the backend as GET and must answer <code>{"off_until": epoch|null}</code>. The power button shows when all three are set.</p>
                     </template>
 
                     <!-- Sensor entity config -->

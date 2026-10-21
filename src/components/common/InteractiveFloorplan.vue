@@ -21,6 +21,8 @@ const props = defineProps<{
     config: FloorplanConfig,
     entityStates: Record<string, EntityState>,
     topicValues: Record<string, string>,
+    cameraPower: Record<string, number> | null,  // cameras that are off: widget id -> epoch seconds; null = not known yet
+    cameraPowerBusy: Record<string, boolean>,    // widget ids whose power request is in flight
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +32,7 @@ const emit = defineEmits<{
     (e: 'entity-send', topic: string, value: string): void
     (e: 'entity-toggle', entityId: string, writeTopic: string, value: string, nextOn: boolean): void
     (e: 'entity-select', entityId: string, writeTopic: string, value: string): void
+    (e: 'camera-power', widgetId: string, on: boolean): void
 }>();
 
 const hasImage = computed(() => !!props.config.imageBase64);
@@ -312,9 +315,19 @@ function clearFrameTimer() {
   }
 }
 
+// Epoch seconds when a camera that is off turns back on; undefined while it is on or not known yet.
+function cameraOffUntil(entity: EntityConfig): number | undefined {
+  return props.cameraPower?.[entity.id];
+}
+
+function formatOffUntil(until: number): string {
+  const d = new Date(until * 1000);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function openCamera(entity: EntityConfig) {
   const url = entity.cameraConfig?.url;
-  if (!url) return;
+  if (!url || cameraOffUntil(entity) !== undefined) return;
   frame.value = Date.now();
   openUrl.value = url;
 }
@@ -441,11 +454,18 @@ function atMax(entity: EntityConfig): boolean {
                     :raw-payload="props.entityStates[entity.entityId]?.rawPayload"
                     :style="getSensorPositionStyle(entity)" />
 
-                <!-- Camera snapshot previews (loaded once per page load; click opens the live view) -->
+                <!-- Camera snapshot previews (loaded once per page load; click opens the live view).
+                     The snapshot waits for the power map; a camera that is off shows until when instead. -->
                 <div v-for="entity in props.config.entities.filter(e => e.type === 'camera')" :key="entity.id"
-                    class="camera-preview" :style="getCameraPositionStyle(entity)" :title="entity.label"
+                    class="camera-preview" :class="{ off: cameraOffUntil(entity) !== undefined }"
+                    :style="getCameraPositionStyle(entity)" :title="entity.label"
                     @click.stop="openCamera(entity)">
-                    <img v-if="entity.cameraConfig?.url" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false" />
+                    <span v-if="cameraOffUntil(entity) !== undefined" class="camera-off-text">Off until {{ formatOffUntil(cameraOffUntil(entity)!) }}</span>
+                    <img v-else-if="entity.cameraConfig?.url && props.cameraPower" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false" />
+                    <button v-if="entity.cameraConfig?.offUrl && entity.cameraConfig?.onUrl && entity.cameraConfig?.statusUrl" class="camera-power-btn"
+                        :disabled="props.cameraPowerBusy[entity.id]"
+                        :title="cameraOffUntil(entity) !== undefined ? 'Turn camera on' : 'Turn camera off'"
+                        @click.stop="emit('camera-power', entity.id, cameraOffUntil(entity) !== undefined)">⏻</button>
                 </div>
             </div>
         </div>

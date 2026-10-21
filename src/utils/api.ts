@@ -146,6 +146,26 @@ export function cameraImageUrl(url: string, bust?: number): string {
     return bust === undefined ? base : `${base}&t=${bust}`;
 }
 
+/** Cameras that are off: widget id -> epoch seconds when they turn back on. Plain fetch
+ *  (not apiFetch): App.vue also calls it at startup before the session is confirmed, and a
+ *  401 there must not trigger the reload path. */
+export async function fetchCameraPower(): Promise<Record<string, number>> {
+    const res = await fetchWithTimeout('/api/camera/power', { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Failed to fetch camera power');
+    return res.json();
+}
+
+/** Send a camera widget's off or on request. Returns when the camera turns back on
+ *  (epoch seconds), or null when it is on. */
+export async function setCameraPower(widgetId: string, on: boolean): Promise<number | null> {
+    const res = await apiFetch(`/api/camera/${encodeURIComponent(widgetId)}/power`, {
+        method: 'POST',
+        body: JSON.stringify({ on }),
+    });
+    if (!res.ok) throw new Error('Failed to set camera power');
+    return (await res.json()).until;
+}
+
 export async function fetchDevices(): Promise<string[]> {
     const res = await apiFetch('/api/devices');
     if (!res.ok) throw new Error('Failed to fetch devices');

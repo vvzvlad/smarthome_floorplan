@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 import logging
 import os
 import secrets
@@ -11,6 +12,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import Scope
@@ -257,8 +259,8 @@ class _RedactCameraUrl(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(_RedactCameraUrl())
 
 
-def _fetch_camera(url: str) -> tuple[bytes, str]:
-    """Blocking fetch of a camera snapshot. Returns (body, upstream Content-Type).
+def _fetch_camera(url: str, timeout: float = CAMERA_TIMEOUT) -> tuple[bytes, str]:
+    """Blocking GET of a camera URL (snapshot or power request). Returns (body, upstream Content-Type).
 
     Credentials embedded in the URL (http://user:pass@host/...) are sent as HTTP Basic
     auth: urllib does not do that itself, it takes "user:pass@host" for the host name and
@@ -271,7 +273,7 @@ def _fetch_camera(url: str) -> tuple[bytes, str]:
         headers["Authorization"] = "Basic " + base64.b64encode(creds.encode()).decode()
         url = urllib.parse.urlunsplit(parts._replace(netloc=parts.netloc.rpartition("@")[2]))
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=CAMERA_TIMEOUT) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read(), resp.headers.get("Content-Type") or "image/jpeg"
 
 
@@ -286,6 +288,72 @@ async def get_camera(url: str):
     except Exception:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Camera fetch failed")
     return Response(content=body, media_type=ctype, headers={"Cache-Control": "no-store"})
+
+
+# --- Camera power ---
+# A camera widget may carry three request URLs (cameraConfig.offUrl / onUrl / statusUrl),
+# each answering JSON {"off_until": <epoch seconds> | null}. They are taken from the saved
+# config only, so the browser can never make the backend request an arbitrary URL.
+CAMERA_STATUS_TIMEOUT = 3  # seconds per camera for the state request of the 5 s poll
+# Seconds for an on/off request: a camera may answer "on" only once its stream is up, and
+# the frontend gives the whole call 15 s.
+CAMERA_POWER_TIMEOUT = 13
+
+
+def _camera_widgets() -> dict:
+    """Camera widgets of the saved config: widget id -> its cameraConfig."""
+    return {
+        e.get("id"): e.get("cameraConfig") or {}
+        for e in read_config().get("entities", [])
+        if e.get("type") == "camera"
+    }
+
+
+def _camera_power_request(url: str, timeout: float = CAMERA_TIMEOUT):
+    """Blocking GET of a camera power request URL. Returns its off_until (None = on)."""
+    body, _ = _fetch_camera(url, timeout)
+    return json.loads(body)["off_until"]
+
+
+@app.get("/api/camera/power", dependencies=[Depends(verify_auth)])
+async def get_camera_power():
+    """Cameras that are off: widget id -> epoch seconds when they turn back on.
+
+    Asks the statusUrl of every camera widget concurrently; a camera that does not answer
+    is left out of the map.
+    """
+    status_urls = {wid: cfg["statusUrl"] for wid, cfg in _camera_widgets().items() if cfg.get("statusUrl")}
+    results = await asyncio.gather(
+        *(asyncio.to_thread(_camera_power_request, url, CAMERA_STATUS_TIMEOUT) for url in status_urls.values()),
+        return_exceptions=True,
+    )
+    off = {}
+    for widget_id, result in zip(status_urls, results):
+        if isinstance(result, BaseException):
+            logger.warning("Camera %s state request failed: %r", widget_id, result)
+        elif result is not None:
+            off[widget_id] = result
+    return JSONResponse(content=off)
+
+
+class CameraPowerBody(BaseModel):
+    on: bool
+
+
+@app.post("/api/camera/{widget_id}/power", dependencies=[Depends(verify_auth)])
+async def post_camera_power(widget_id: str, body: CameraPowerBody):
+    """Send the camera widget's onUrl or offUrl request.
+
+    Returns {"until": epoch seconds} while the camera is off, {"until": null} once it is on.
+    """
+    url = _camera_widgets().get(widget_id, {}).get("onUrl" if body.on else "offUrl")
+    if not url:
+        raise HTTPException(status_code=404, detail="Camera widget or its request URL not found")
+    try:
+        until = await asyncio.to_thread(_camera_power_request, url, CAMERA_POWER_TIMEOUT)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Camera request failed")
+    return JSONResponse(content={"until": until})
 
 
 _static_path = os.path.join(os.path.dirname(__file__), "..", "static")

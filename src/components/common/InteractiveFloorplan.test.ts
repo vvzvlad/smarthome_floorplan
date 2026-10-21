@@ -65,9 +65,10 @@ function mountWith(
     entities: EntityConfig[],
     entityStates: Record<string, EntityState> = {},
     topicValues: Record<string, string> = {},
+    cameraPower: Record<string, number> | null = {},
 ) {
     return mount(InteractiveFloorplan, {
-        props: { config: makeConfig(entities), entityStates, topicValues },
+        props: { config: makeConfig(entities), entityStates, topicValues, cameraPower, cameraPowerBusy: {} },
     })
 }
 
@@ -242,5 +243,34 @@ describe('InteractiveFloorplan — sensor icon', () => {
         const glyph = mountWith([sensorEntity()]).find('.sensor-glyph')
         expect(glyph.attributes('style')).not.toContain('mask-image')
         expect(glyph.classes()).toContain('circle')
+    })
+})
+
+describe('InteractiveFloorplan — camera power', () => {
+    const cameraEntity = () => lightEntity({ id: 'cam-1', entityId: 'cam', type: 'camera',
+        cameraConfig: { url: 'http://cam/image.jpg', width: 10, offUrl: 'http://cam/off', onUrl: 'http://cam/on', statusUrl: 'http://cam/state' } })
+
+    it('loads no snapshot while the camera state is not known yet', () => {
+        const w = mountWith([cameraEntity()], {}, {}, null)
+        expect(w.find('.camera-preview img').exists()).toBe(false)
+        w.unmount()
+    })
+
+    it('while off shows until when instead of the snapshot, opens no live view, and the button turns it on', async () => {
+        const until = new Date(2026, 9, 21, 14, 5).getTime() / 1000
+        const w = mountWith([cameraEntity()], {}, {}, { 'cam-1': until })
+        expect(w.find('.camera-preview img').exists()).toBe(false)
+        expect(w.find('.camera-off-text').text()).toBe('Off until 14:05')
+
+        await w.find('.camera-preview').trigger('click')
+        expect(document.body.querySelector('.camera-modal')).toBeNull()
+
+        await w.find('.camera-power-btn').trigger('click')
+        expect(w.emitted('camera-power')).toEqual([['cam-1', true]])
+
+        // Once the record is gone the snapshot is mounted again
+        await w.setProps({ cameraPower: {} })
+        expect(w.find('.camera-preview img').exists()).toBe(true)
+        w.unmount()
     })
 })

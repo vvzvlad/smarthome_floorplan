@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { RouterView, RouterLink } from 'vue-router';
 import { useFloorplanStore } from './stores/floorplan';
 import LoginForm from './components/LoginForm.vue';
-import { logout, fetchStates, fetchTopicValues, fetchBootstrap, fetchConfigCached } from './utils/api';
+import { logout, fetchStates, fetchTopicValues, fetchBootstrap, fetchConfigCached, fetchCameraPower } from './utils/api';
 import { needsMigration, migrateConfig } from './utils/configMigration';
 import { normalizeEntityState } from './utils/entityState';
 import type { FloorplanConfig } from './types/floorplan';
@@ -40,12 +40,20 @@ function applyStates(states: Record<string, Record<string, unknown>>) {
     }
 }
 
+// Fetch the camera power map now instead of at the first poll: camera previews wait for it,
+// so this keeps them from waiting 5 s. Runs before the session is confirmed, so a failure
+// (a 401 while logged out included) is left to the poll.
+function loadCameraPowerNow() {
+    fetchCameraPower().then(map => { store.cameraPower = map; }).catch(() => {});
+}
+
 async function loadStates() {
-    // The two reads are independent — fetch them in parallel so polling latency
-    // is one round-trip, not two. Apply each only if it resolved.
-    const [statesResult, topicsResult] = await Promise.allSettled([
+    // The reads are independent — fetch them in parallel so polling latency
+    // is one round-trip, not three. Apply each only if it resolved.
+    const [statesResult, topicsResult, camerasResult] = await Promise.allSettled([
         fetchStates(),
         fetchTopicValues(),
+        fetchCameraPower(),
     ]);
     if (statesResult.status === 'fulfilled') {
         applyStates(statesResult.value);
@@ -57,10 +65,16 @@ async function loadStates() {
     } else {
         console.error('Failed to load topic values', topicsResult.reason);
     }
+    if (camerasResult.status === 'fulfilled') {
+        store.cameraPower = camerasResult.value;
+    } else {
+        console.error('Failed to load camera power', camerasResult.reason);
+    }
 }
 
 async function onLoginSuccess() {
     isAuthenticated.value = true;
+    loadCameraPowerNow();
     // The login set the session cookie; we're definitely authed. Fetch the dynamic
     // bootstrap and the (SW-cached) config in parallel to populate the app.
     const [boot, rawConfig] = await Promise.all([
@@ -96,9 +110,10 @@ async function onLogout() {
 }
 
 onMounted(async () => {
-    // Fire both in parallel: the (SW-cached) config and the dynamic bootstrap.
+    // Fire in parallel: the (SW-cached) config, the dynamic bootstrap and the camera power map.
     const bootP = fetchBootstrap();
     const configP = fetchConfigCached().catch(() => null);
+    loadCameraPowerNow();
 
     // Optimistic paint: if a config is available (instant from the SW cache on repeat
     // loads), render the floorplan now WITHOUT waiting for the auth round-trip. A

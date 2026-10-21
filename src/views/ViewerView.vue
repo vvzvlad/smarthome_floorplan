@@ -9,11 +9,13 @@ const store = useFloorplanStore();
   <div class="viewer-view">
     <InteractiveFloorplan :config="store.config" :entity-states="store.entityStates"
       :topic-values="store.topicValues"
+      :camera-power="store.cameraPower" :camera-power-busy="store.cameraPowerBusy"
       @entity-click="(id) => store.toggleEntityState(id)"
       @entity-set-value="(id, topic, value) => store.setNumberValue(id, topic, value)"
       @entity-send="(topic, value) => store.sendButtonValue(topic, value)"
       @entity-toggle="(id, topic, value, nextOn) => store.setToggleValue(id, topic, value, nextOn)"
-      @entity-select="(id, topic, value) => store.setSelectValue(id, topic, value)" />
+      @entity-select="(id, topic, value) => store.setSelectValue(id, topic, value)"
+      @camera-power="(id, on) => store.switchCameraPower(id, on)" />
   </div>
 </template>
 

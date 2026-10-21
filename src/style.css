@@ -372,6 +372,37 @@ input:focus {
   user-select: none;
   /* width is set inline (in % of the floorplan) per widget; the img fills it via .image-wrapper img */
 }
+.camera-preview.off { cursor: default; }  /* no live view while the camera is off */
+.camera-preview .camera-off-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3cqw;
+  padding: 0 2.4cqw 0 0.6cqw;  /* right padding keeps the text clear of the power button */
+  color: #cbd5e1;
+  font-family: system-ui, sans-serif;
+  font-size: 1cqw;
+  line-height: 1.2;  /* .image-wrapper sets line-height 0 */
+  white-space: nowrap;
+}
+.camera-preview .camera-power-btn {
+  position: absolute;
+  top: 0.3cqw;
+  right: 0.3cqw;
+  width: 1.8cqw;
+  height: 1.8cqw;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  font-size: 1.1cqw;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.camera-preview .camera-power-btn:disabled { opacity: 0.5; cursor: wait; }
 
 .camera-modal {
   position: fixed;

@@ -9,6 +9,7 @@ vi.mock('./utils/api', () => ({
     logout: vi.fn().mockResolvedValue(undefined),
     fetchStates: vi.fn().mockResolvedValue({}),
     fetchTopicValues: vi.fn().mockResolvedValue({}),
+    fetchCameraPower: vi.fn().mockResolvedValue({}),
     fetchBootstrap: vi.fn(),
     fetchConfigCached: vi.fn(),
 }))

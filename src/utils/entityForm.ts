@@ -80,7 +80,7 @@ export function defaultSelectConfig(): SelectConfig {
  * onTypeChange literal.
  */
 export function defaultCameraConfig(): CameraConfig {
-  return { url: '', width: 10 };
+  return { url: '', width: 10, offUrl: '', onUrl: '', statusUrl: '' };
 }
 
 /**

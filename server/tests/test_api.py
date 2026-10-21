@@ -471,3 +471,85 @@ def test_camera_url_redacted_in_access_log():
     msg = record.getMessage()
     assert "secret" not in msg
     assert '"GET /api/camera?<redacted> HTTP/1.1" 200' in msg
+
+
+# --------------------------------------------------------------------------- #
+# /api/camera/power
+# --------------------------------------------------------------------------- #
+def _camera_config(*cameras):
+    """Config with camera widgets, each given as (widget id, cameraConfig)."""
+    return {
+        "id": "x",
+        "name": "Plan",
+        "imageBase64": "",
+        "entities": [{"id": wid, "type": "camera", "cameraConfig": cfg} for wid, cfg in cameras],
+    }
+
+
+def test_camera_power_requires_auth(client):
+    assert client.get("/api/camera/power").status_code == 401
+    assert client.post("/api/camera/cam/power", json={"on": False}).status_code == 401
+
+
+def test_camera_power_unknown_widget_404(auth_client):
+    assert auth_client.post("/api/camera/nope/power", json={"on": False}).status_code == 404
+    # A widget saved before the request URLs existed has no onUrl -> 404 as well
+    auth_client.post("/api/config", json=_camera_config(("cam", {"url": "http://cam/image.jpg"})))
+    assert auth_client.post("/api/camera/cam/power", json={"on": True}).status_code == 404
+
+
+def test_camera_power_request_failure_502(auth_client, monkeypatch):
+    requested = []
+
+    def fake_fetch(url, timeout=api.CAMERA_TIMEOUT):
+        requested.append(url)
+        raise OSError("camera unreachable")
+
+    monkeypatch.setattr(api, "_fetch_camera", fake_fetch)
+    auth_client.post("/api/config", json=_camera_config(
+        ("cam", {"url": "", "offUrl": "http://cam/off", "onUrl": "http://cam/on"})))
+    assert auth_client.post("/api/camera/cam/power", json={"on": False}).status_code == 502
+    # The request goes to the widget's own offUrl from the saved config
+    assert requested == ["http://cam/off"]
+
+
+def test_camera_power_state_map(auth_client, monkeypatch):
+    answers = {
+        "http://a/state": b'{"off_until": 1700000000}',
+        "http://b/state": b'{"off_until": null}',
+    }
+
+    def fake_fetch(url, timeout=api.CAMERA_TIMEOUT):
+        if url not in answers:
+            raise OSError("camera unreachable")
+        return answers[url], "application/json"
+
+    monkeypatch.setattr(api, "_fetch_camera", fake_fetch)
+    auth_client.post("/api/config", json=_camera_config(
+        ("off", {"url": "", "statusUrl": "http://a/state"}),
+        ("on", {"url": "", "statusUrl": "http://b/state"}),
+        ("down", {"url": "", "statusUrl": "http://c/state"}),
+        ("bare", {"url": ""}),
+    ))
+    # Only the camera that reports off is in the map; the unreachable one is left out
+    assert auth_client.get("/api/camera/power").json() == {"off": 1700000000}
+
+
+def test_camera_power_switch_returns_until(auth_client, monkeypatch):
+    answers = {
+        "http://cam/off": b'{"off_until": 1700000000}',
+        "http://cam/on": b'{"off_until": null}',
+    }
+    timeouts = []
+
+    def fake_fetch(url, timeout=api.CAMERA_TIMEOUT):
+        timeouts.append(timeout)
+        return answers[url], "application/json"
+
+    monkeypatch.setattr(api, "_fetch_camera", fake_fetch)
+    auth_client.post("/api/config", json=_camera_config(
+        ("cam", {"url": "", "offUrl": "http://cam/off", "onUrl": "http://cam/on"})))
+    assert auth_client.post("/api/camera/cam/power", json={"on": False}).json() == {"until": 1700000000}
+    assert auth_client.post("/api/camera/cam/power", json={"on": True}).json() == {"until": None}
+    # A camera may answer "on" only once its stream is up, so the switch waits longer than a snapshot
+    assert timeouts == [api.CAMERA_POWER_TIMEOUT, api.CAMERA_POWER_TIMEOUT]

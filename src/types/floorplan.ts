@@ -73,6 +73,11 @@ export interface SelectConfig {
 export interface CameraConfig {
   url: string;     // camera JPEG snapshot URL, fetched through the backend, e.g. "http://10.31.50.106/image.jpg"
   width: number;   // preview width in % of the floorplan width
+  // Power requests, sent by the backend as GET; each answers JSON {"off_until": <epoch seconds> | null}.
+  // '' = not set; widgets saved before these fields existed lack them, which reads the same.
+  offUrl: string;     // turns the camera off, e.g. "http://user:pass@host:8080/cgi-bin/power?cmd=off&off_time=5h"
+  onUrl: string;      // turns it back on
+  statusUrl: string;  // reports the current state
 }
 
 export interface SensorConfig {

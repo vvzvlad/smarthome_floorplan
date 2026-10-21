@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import type { FloorplanConfig, EntityConfig, EntityState } from '../types/floorplan';
 import { v4 as uuidv4 } from 'uuid';
-import { saveConfig, sendCommand, publishRaw } from '../utils/api';
+import { saveConfig, sendCommand, publishRaw, setCameraPower } from '../utils/api';
 
 export const useFloorplanStore = defineStore('floorplan', () => {
     // Config starts empty; loaded from server via App.vue on startup
@@ -20,6 +20,13 @@ export const useFloorplanStore = defineStore('floorplan', () => {
 
     // Raw last-known values of configured MQTT read topics (topic -> raw string)
     const topicValues = ref<Record<string, string>>({});
+
+    // Cameras that are off (widget id -> epoch seconds when they turn back on), as the server
+    // last reported. null until the first answer: previews wait for it, so a camera that is
+    // off never first loads a broken snapshot.
+    const cameraPower = ref<Record<string, number> | null>(null);
+    // Widget ids whose power request is in flight
+    const cameraPowerBusy = ref<Record<string, boolean>>({});
 
     const entities = computed(() => config.value.entities);
     const selectedEntity = computed(() =>
@@ -98,7 +105,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
                 selectConfig: { readTopic: '', writeTopic: '', options: [{ label: 'Off', value: 'OFF' }, { label: 'Heat', value: 'heat' }, { label: 'Cool', value: 'cool' }], size: 2.5 }
             } : {}),
             ...(type === 'camera' ? {
-                cameraConfig: { url: '', width: 10 }
+                cameraConfig: { url: '', width: 10, offUrl: '', onUrl: '', statusUrl: '' }
             } : {})
         };
         config.value.entities.push(newEntity);
@@ -194,6 +201,22 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         publishRaw(writeTopic, value).catch(e =>
             console.error('Failed to publish select value:', e)
         );
+    }
+
+    async function switchCameraPower(widgetId: string, on: boolean) {
+        // No optimistic update: the map changes only by the server's answer.
+        cameraPowerBusy.value[widgetId] = true;
+        try {
+            const until = await setCameraPower(widgetId, on);
+            const next = { ...cameraPower.value };
+            if (until === null) delete next[widgetId];
+            else next[widgetId] = until;
+            cameraPower.value = next;
+        } catch (e) {
+            console.error('Failed to set camera power:', e);
+        } finally {
+            delete cameraPowerBusy.value[widgetId];
+        }
     }
 
     function setEntityState(entityId: string, state: string, rawPayload?: Record<string, unknown>) {
@@ -292,6 +315,8 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         selectedEntity,
         entityStates,
         topicValues,
+        cameraPower,
+        cameraPowerBusy,
         setBaseImage,
         addEntity,
         duplicateEntity,
@@ -302,6 +327,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         sendButtonValue,
         setToggleValue,
         setSelectValue,
+        switchCameraPower,
         setEntityState,
         setTopicValues,
         loadConfig,
