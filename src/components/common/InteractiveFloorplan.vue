@@ -465,7 +465,10 @@ function atMax(entity: EntityConfig): boolean {
                     <button v-if="entity.cameraConfig?.offUrl && entity.cameraConfig?.onUrl && entity.cameraConfig?.statusUrl" class="camera-power-btn"
                         :disabled="props.cameraPowerBusy[entity.id]"
                         :title="cameraOffUntil(entity) !== undefined ? 'Turn camera on' : 'Turn camera off'"
-                        @click.stop="emit('camera-power', entity.id, cameraOffUntil(entity) !== undefined)">⏻</button>
+                        @click.stop="emit('camera-power', entity.id, cameraOffUntil(entity) !== undefined)">
+                        <!-- Inline power icon: the ⏻ glyph is missing from Android fonts -->
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M7 6.3a8 8 0 1 0 10 0" /></svg>
+                    </button>
                 </div>
             </div>
         </div>

@@ -402,6 +402,14 @@ input:focus {
   align-items: center;
   justify-content: center;
 }
+.camera-preview .camera-power-btn svg {
+  width: 65%;
+  height: 65%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
 .camera-preview .camera-power-btn:disabled { opacity: 0.5; cursor: wait; }
 
 .camera-modal {
