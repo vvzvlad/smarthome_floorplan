@@ -7,23 +7,24 @@ import type { EntityConfig, LabelConfig } from '../types/floorplan';
 /**
  * Build the inline style object for an entity overlay in the editor. Mirrors
  * EntityOverlay.vue's styleObject exactly:
- *  - text/number/button/toggle/select/camera/sensor entities render the same
- *    transparent, bordered move handle (camera also gets its preview width),
+ *  - text/number/button/toggle/select/camera/sensor/chart entities render the same
+ *    transparent, bordered move handle (camera and chart also get their width),
  *  - light entities use the offColor (with a '#94a3b8' fallback when the colors
  *    object lacks an offColor), a circle/square borderRadius, opacity, rotation,
  *  - selection toggles the border color and zIndex.
  */
 export function entityStyle(
-  entity: Pick<EntityConfig, 'shape' | 'style' | 'x' | 'y' | 'type' | 'cameraConfig'>,
+  entity: Pick<EntityConfig, 'shape' | 'style' | 'x' | 'y' | 'type' | 'cameraConfig' | 'chartConfig'>,
   isSelected: boolean,
 ): Record<string, string | number> {
   const { shape, style, x, y, type } = entity;
 
-  if (type === 'text' || type === 'number' || type === 'button' || type === 'toggle' || type === 'select' || type === 'camera' || type === 'sensor') {
+  if (type === 'text' || type === 'number' || type === 'button' || type === 'toggle' || type === 'select' || type === 'camera' || type === 'sensor' || type === 'chart') {
     return {
       left: `${x}%`,
       top: `${y}%`,
       ...(type === 'camera' ? { width: `${entity.cameraConfig?.width ?? 10}%` } : {}),
+      ...(type === 'chart' ? { width: `${entity.chartConfig?.width ?? 15}%` } : {}),
       position: 'absolute' as const,
       transform: 'translate(-50%, -50%)',
       border: isSelected ? '2px solid var(--color-primary)' : '2px solid transparent',

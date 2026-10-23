@@ -23,7 +23,7 @@ in the container.
 ## Setup
 ```bash
 make install           # create .venv and install backend dev/test deps
-cp .env.example .env   # fill in AUTH_PASSWORD and MQTT_HOST
+cp .env.example .env   # fill in AUTH_PASSWORD, MQTT_HOST, INFLUX_URL and INFLUX_DB
 npm ci                 # frontend deps
 ```
 
@@ -55,7 +55,8 @@ cookie is Secure-only and the browser drops it over http).
 - All runtime state lives in `data/`.
 - All configuration/secrets come from ENV / `.env` (see `.env.example`), read via
   `server/src/settings.py` (`pydantic-settings`). Credentials and own-service
-  addresses (`AUTH_PASSWORD`, `MQTT_HOST`) have no defaults — missing → fail at start.
+  addresses (`AUTH_PASSWORD`, `MQTT_HOST`, `INFLUX_URL`, `INFLUX_DB`) have no defaults —
+  missing → fail at start.
 - Credentials/addresses the user provides go ONLY into `.env` (never into code,
   never via inline env vars), read through `Settings`.
 - Comments in code are in English.

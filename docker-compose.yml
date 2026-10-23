@@ -37,11 +37,14 @@ services:
       # the entire persistent state of the service — the floorplan itself lives in that JSON.
       - data:/app/data
     environment:
-      # No real values here: all four are set in the Portainer stack. AUTH_PASSWORD and
-      # MQTT_HOST are required (`Settings` has no default for them), so a stack without either
-      # fails at import and the container never starts; ci/smoke.py checks this on every build.
+      # No real values here: all six are set in the Portainer stack. AUTH_PASSWORD, MQTT_HOST,
+      # INFLUX_URL and INFLUX_DB are required (`Settings` has no default for them), so a stack
+      # without any of them fails at import and the container never starts; ci/smoke.py checks
+      # this for AUTH_PASSWORD and MQTT_HOST on every build.
       AUTH_PASSWORD: XXX
       MQTT_HOST: XXX
+      INFLUX_URL: XXX
+      INFLUX_DB: XXX
       APP_TITLE: XXX
       TZ: XXX
     networks:

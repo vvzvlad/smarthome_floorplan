@@ -1,4 +1,4 @@
-export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select' | 'camera' | 'sensor';
+export type EntityType = 'light' | 'text' | 'number' | 'button' | 'toggle' | 'select' | 'camera' | 'sensor' | 'chart';
 export type EntityShape = 'circle' | 'square' | 'rect' | 'custom';
 
 export interface BinaryColors {
@@ -93,6 +93,15 @@ export interface SensorConfig {
   icon: string;      // uploaded icon (SVG or PNG) as a data URI, used as a mask tinted by the state colour; '' = none (a circle is shown)
 }
 
+// Line chart of one value over the last 24 hours, read from InfluxDB through the backend.
+export interface ChartConfig {
+  source: TextSource;  // 'state' = JSON field of the z2m device (jsonPath); 'topic' = raw MQTT topic (readTopic)
+  jsonPath: string;    // used when source === 'state', e.g. "temperature" or "sensors.co2"
+  readTopic: string;   // used when source === 'topic', e.g. "/devices/wb-mge-30d86b/controls/speed"
+  format: string;      // formats the min/max labels, "{}" = the value, e.g. "{}°C"
+  width: number;       // chart width in % of the floorplan width
+}
+
 export interface EntityConfig {
   id: string; // Internal UUID for the UI
   entityId: string; // HA Entity ID e.g. light.living_room
@@ -111,6 +120,7 @@ export interface EntityConfig {
   selectConfig?: SelectConfig;
   cameraConfig?: CameraConfig;
   sensorConfig?: SensorConfig;
+  chartConfig?: ChartConfig;
   // Runtime state (not saved in config, but handy to have loosely coupled or in a separate store, 
   // but for experimentation mode we might want to store simulation state here or in a parallel map)
 }

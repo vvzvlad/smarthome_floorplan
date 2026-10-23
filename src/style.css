@@ -428,6 +428,51 @@ input:focus {
   object-fit: contain;
 }
 
+/* Chart widget (ChartWidget.vue): the last 24 hours of one value. The viewer sets the
+   width inline (in % of the floorplan); in the editor it fills the overlay that carries it. */
+.chart-widget {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 4px;
+  overflow: hidden;
+  color: white;
+  font-family: monospace;
+  font-size: 1cqw;
+  line-height: 1.2;  /* .image-wrapper sets line-height 0 */
+  pointer-events: none;
+  user-select: none;
+}
+.chart-widget svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.chart-widget polyline {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;  /* the viewBox is stretched to the box: keep the line 2px */
+}
+.chart-widget .chart-label {
+  position: absolute;
+  left: 0.4cqw;
+  white-space: nowrap;
+}
+.chart-widget .chart-max { top: 0.3cqw; }
+.chart-widget .chart-min { bottom: 0.3cqw; }
+.chart-widget .chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
 .entity-shape {
   /* Style injected via inline styles, but base properties here if needed */
 }

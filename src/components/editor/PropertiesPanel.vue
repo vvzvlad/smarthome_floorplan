@@ -4,7 +4,7 @@ import { computed, ref, onMounted } from 'vue';
 import { fetchDevices, getIconStatus, uploadIcon, deleteIcon } from '../../utils/api';
 import { resizeImageToPng, imageDownloadFilename } from '../../utils/image';
 import { sanitizeFilenameBase, triggerDownload } from '../../utils/download';
-import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig, defaultSelectConfig, defaultCameraConfig, defaultSensorConfig } from '../../utils/entityForm';
+import { filterDevices, parseNumberField, defaultTextConfig, defaultNumberConfig, defaultButtonConfig, defaultToggleConfig, defaultSelectConfig, defaultCameraConfig, defaultSensorConfig, defaultChartConfig } from '../../utils/entityForm';
 import { normalizeImportedConfig } from '../../utils/configMigration';
 import SensorIcon from '../common/SensorIcon.vue';
 const store = useFloorplanStore();
@@ -225,6 +225,9 @@ function onTypeChange() {
     if (selectedEntity.value.type === 'sensor' && !selectedEntity.value.sensorConfig) {
         store.updateEntity(selectedEntity.value.id, { sensorConfig: defaultSensorConfig() });
     }
+    if (selectedEntity.value.type === 'chart' && !selectedEntity.value.chartConfig) {
+        store.updateEntity(selectedEntity.value.id, { chartConfig: defaultChartConfig() });
+    }
 }
 
 function setTextJsonPath(e: Event) {
@@ -351,6 +354,23 @@ function setSensorNum(key: 'size', e: Event) {
     }
 }
 
+function setChartSource(e: Event) {
+    if (selectedEntity.value?.chartConfig) {
+        selectedEntity.value.chartConfig.source = (e.target as HTMLSelectElement).value as 'state' | 'topic';
+    }
+}
+function setChartField(key: 'jsonPath' | 'readTopic' | 'format', e: Event) {
+    if (selectedEntity.value?.chartConfig) {
+        selectedEntity.value.chartConfig[key] = (e.target as HTMLInputElement).value;
+    }
+}
+function setChartNum(key: 'width', e: Event) {
+    if (selectedEntity.value?.chartConfig) {
+        const n = parseNumberField((e.target as HTMLInputElement).value);
+        if (n !== null) selectedEntity.value.chartConfig[key] = n;
+    }
+}
+
 const sensorIconInput = ref<HTMLInputElement | null>(null);
 
 function readAsDataUrl(blob: Blob): Promise<string> {
@@ -464,6 +484,7 @@ function removeSensorIcon() {
                             <option value="select">Multi Switch</option>
                             <option value="camera">Camera</option>
                             <option value="sensor">Sensor</option>
+                            <option value="chart">Chart</option>
                         </select>
                     </div>
 
@@ -748,6 +769,38 @@ function removeSensorIcon() {
                             </div>
                         </div>
                         <p class="hint small">Upload a monochrome SVG or PNG icon with a transparent background: its shape is tinted with the On/Off colors (without an icon a circle is shown). The icon takes the On color when the JSON field of the device state equals the On value (a door/window contact reports <code>contact: false</code> when open), the Off color otherwise.</p>
+                    </template>
+
+                    <!-- Chart entity config -->
+                    <template v-else-if="selectedEntity.type === 'chart'">
+                        <div class="section-title">Chart</div>
+                        <div class="input-group">
+                            <label>Source</label>
+                            <select :value="selectedEntity.chartConfig?.source ?? 'state'" @change="setChartSource">
+                                <option value="state">Device state (JSON)</option>
+                                <option value="topic">MQTT topic (raw)</option>
+                            </select>
+                        </div>
+                        <div class="input-group" v-if="(selectedEntity.chartConfig?.source ?? 'state') === 'state'">
+                            <label>JSON Path</label>
+                            <input type="text" :value="selectedEntity.chartConfig?.jsonPath ?? ''"
+                                @input="setChartField('jsonPath', $event)" placeholder="e.g. temperature">
+                        </div>
+                        <div class="input-group" v-else>
+                            <label>Read Topic</label>
+                            <input type="text" :value="selectedEntity.chartConfig?.readTopic ?? ''"
+                                @input="setChartField('readTopic', $event)" placeholder="e.g. home/kiln/temp">
+                        </div>
+                        <div class="input-group">
+                            <label>Format</label>
+                            <input type="text" :value="selectedEntity.chartConfig?.format ?? ''"
+                                @input="setChartField('format', $event)" placeholder="e.g. {} °C">
+                        </div>
+                        <div class="input-group">
+                            <label>Width (%)</label>
+                            <input type="number" :value="selectedEntity.chartConfig?.width ?? 15" step="1" min="1" @input="setChartNum('width', $event)">
+                        </div>
+                        <p class="hint small">Last 24 hours from InfluxDB, 5-minute averages, refreshed every 5 minutes.</p>
                     </template>
 
                     <!-- Light entity config -->

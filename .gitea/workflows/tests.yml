@@ -60,13 +60,15 @@ jobs:
         # `-v "$PWD:/src"` path would mean something else (or nothing) on the host. It also
         # keeps root-owned __pycache__ out of the checkout. `.git` is not needed by the tests.
         # `--pull always`: the daemon is persistent, so a cached base image would go unpatched.
-        # The three variables make `server/src/settings.py` importable: AUTH_PASSWORD and
-        # MQTT_HOST have no defaults, and COOKIE_SECURE must be false because Starlette's
+        # The five variables make `server/src/settings.py` importable: AUTH_PASSWORD, MQTT_HOST,
+        # INFLUX_URL and INFLUX_DB have no defaults, and COOKIE_SECURE must be false because Starlette's
         # TestClient speaks plain http, where a Secure cookie is dropped. conftest.py sets the
         # same with `setdefault`; they are spelled out here as the deployment contract.
         tar -cf - --exclude=./.git . | docker run --rm -i --pull always \
           -e AUTH_PASSWORD=test-password \
           -e MQTT_HOST=localhost \
+          -e INFLUX_URL=http://localhost:8086 \
+          -e INFLUX_DB=test \
           -e COOKIE_SECURE=false \
           -e PIP_DISABLE_PIP_VERSION_CHECK=1 \
           -e PYTHONDONTWRITEBYTECODE=1 \

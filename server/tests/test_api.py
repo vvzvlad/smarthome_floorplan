@@ -1,5 +1,7 @@
 import base64
+import json
 import logging
+import urllib.parse
 
 import pytest
 
@@ -553,3 +555,113 @@ def test_camera_power_switch_returns_until(auth_client, monkeypatch):
     assert auth_client.post("/api/camera/cam/power", json={"on": True}).json() == {"until": None}
     # A camera may answer "on" only once its stream is up, so the switch waits longer than a snapshot
     assert timeouts == [api.CAMERA_POWER_TIMEOUT, api.CAMERA_POWER_TIMEOUT]
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/chart
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    "device, path, topic, expected",
+    [
+        # z2m device field: base topic + device + JSON keys, a nested path joined with "/"
+        ("out-in-temp", "temperature", None, "zigbee2mqtt/out-in-temp/temperature"),
+        ("Living Room", "sensors.co2", None, "zigbee2mqtt/living_room/sensors/co2"),
+        # Raw topic: the topic itself, normalised like the bridge (spaces -> "_", lowercase)
+        (None, None, "/devices/WB-MGE-30D86B/controls/speed", "/devices/wb-mge-30d86b/controls/speed"),
+        # Anything but exactly one of the two forms
+        ("dev", None, None, None),
+        (None, "temperature", None, None),
+        ("dev", "temperature", "some/topic", None),
+        (None, None, None, None),
+        ("", "", "", None),
+    ],
+)
+def test_chart_measurement(monkeypatch, device, path, topic, expected):
+    monkeypatch.setattr(api.settings, "z2m_base", "zigbee2mqtt")
+    assert api.chart_measurement(device, path, topic) == expected
+
+
+class _FakeInfluxResp:
+    def __init__(self, body):
+        self.body = body
+
+    def read(self):
+        return self.body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _fake_influx(monkeypatch, answer):
+    """Point urlopen at a fake InfluxDB: `answer` is the JSON it returns or the exception it
+    raises. Returns the list of requested URLs."""
+    monkeypatch.setattr(api.settings, "influx_url", "http://influx:8086")
+    monkeypatch.setattr(api.settings, "influx_db", "mqtt")
+    requested = []
+
+    def fake_urlopen(url, timeout):
+        requested.append(url)
+        if isinstance(answer, Exception):
+            raise answer
+        return _FakeInfluxResp(json.dumps(answer).encode())
+
+    monkeypatch.setattr(api.urllib.request, "urlopen", fake_urlopen)
+    return requested
+
+
+def _influx_query(url):
+    assert url.startswith("http://influx:8086/query?")
+    return urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+
+
+def test_chart_requires_auth(client):
+    assert client.get("/api/chart", params={"topic": "a/b"}).status_code == 401
+
+
+def test_chart_bad_params_400(auth_client):
+    assert auth_client.get("/api/chart").status_code == 400
+    assert auth_client.get("/api/chart", params={"device": "dev"}).status_code == 400
+    assert auth_client.get(
+        "/api/chart", params={"device": "dev", "path": "t", "topic": "a/b"}).status_code == 400
+
+
+def test_chart_returns_points(auth_client, monkeypatch):
+    monkeypatch.setattr(api.settings, "z2m_base", "zigbee2mqtt")
+    requested = _fake_influx(monkeypatch, {"results": [{"statement_id": 0, "series": [{
+        "name": "zigbee2mqtt/out-in-temp/temperature",
+        "columns": ["time", "mean"],
+        "values": [[1700000000, 21.5], [1700000300, 21.75]],
+    }]}]})
+    resp = auth_client.get("/api/chart", params={"device": "out-in-temp", "path": "temperature"})
+    assert resp.status_code == 200
+    assert resp.json() == {"points": [[1700000000, 21.5], [1700000300, 21.75]]}
+    query = _influx_query(requested[0])
+    assert query["db"] == ["mqtt"]
+    assert query["epoch"] == ["s"]
+    assert query["q"] == ['SELECT mean("value") FROM "zigbee2mqtt/out-in-temp/temperature" '
+                          "WHERE time > now() - 24h GROUP BY time(5m) fill(none)"]
+
+
+def test_chart_no_series_is_empty(auth_client, monkeypatch):
+    requested = _fake_influx(monkeypatch, {"results": [{"statement_id": 0}]})
+    resp = auth_client.get("/api/chart", params={"topic": 'home/a"b\\c'})
+    assert resp.status_code == 200
+    assert resp.json() == {"points": []}
+    # Double quote and backslash in the name are escaped inside the quoted identifier
+    assert 'FROM "home/a\\"b\\\\c" WHERE' in _influx_query(requested[0])["q"][0]
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        OSError("influx unreachable"),
+        {"error": "error parsing query"},
+        {"results": [{"statement_id": 0, "error": "database not found: mqtt"}]},
+    ],
+)
+def test_chart_influx_failure_502(auth_client, monkeypatch, answer):
+    _fake_influx(monkeypatch, answer)
+    assert auth_client.get("/api/chart", params={"topic": "a/b"}).status_code == 502

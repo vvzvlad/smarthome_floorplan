@@ -13,6 +13,7 @@ import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
 import SensorIcon from './SensorIcon.vue';
+import ChartWidget from './ChartWidget.vue';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
 import { cameraImageUrl } from '../../utils/api';
@@ -303,6 +304,17 @@ function getCameraPositionStyle(entity: EntityConfig) {
   };
 }
 
+function getChartPositionStyle(entity: EntityConfig) {
+  return {
+    left: `${entity.x}%`,
+    top: `${entity.y}%`,
+    width: `${entity.chartConfig?.width ?? 15}%`,
+    position: 'absolute' as const,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 1,
+  };
+}
+
 // Camera modal: the URL of the open camera and the cache-buster of its current frame.
 const openUrl = ref<string | null>(null);
 const frame = ref(0);
@@ -453,6 +465,11 @@ function atMax(entity: EntityConfig): boolean {
                     :config="entity.sensorConfig" :colors="entity.style.colors"
                     :raw-payload="props.entityStates[entity.entityId]?.rawPayload"
                     :style="getSensorPositionStyle(entity)" />
+
+                <!-- Charts: the last 24 hours of one value (read-only, history from InfluxDB) -->
+                <ChartWidget v-for="entity in props.config.entities.filter(e => e.type === 'chart')" :key="entity.id"
+                    :config="entity.chartConfig" :entity-id="entity.entityId"
+                    :style="getChartPositionStyle(entity)" />
 
                 <!-- Camera snapshot previews (loaded once per page load; click opens the live view).
                      The snapshot waits for the power map; a camera that is off shows until when instead. -->

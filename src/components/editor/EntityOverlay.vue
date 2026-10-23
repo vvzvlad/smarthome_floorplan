@@ -9,6 +9,7 @@ import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
 import SensorIcon from '../common/SensorIcon.vue';
+import ChartWidget from '../common/ChartWidget.vue';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
 import { cameraImageUrl } from '../../utils/api';
 
@@ -298,6 +299,8 @@ const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`
     <div v-else-if="entity.type === 'camera'" class="camera-preview" style="pointer-events: none">
       <img v-if="entity.cameraConfig?.url" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false">
     </div>
+    <!-- Chart entity: the same chart as the viewer, non-interactive, for placement -->
+    <ChartWidget v-else-if="entity.type === 'chart'" :config="entity.chartConfig" :entity-id="entity.entityId" />
     <!-- Light entity: show label if enabled -->
     <div v-else-if="entity.labelConfig.show" ref="labelRef" class="entity-label" :style="labelStyle"
       @mousedown="onLabelMouseDown" @touchstart="onLabelTouchStart" @click.stop>

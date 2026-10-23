@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     # default and must come from the environment (a localhost default would
     # silently mask missing config in production). ---
     mqtt_host: str
+    # InfluxDB 1.x that keeps the MQTT history the chart widget draws, e.g.
+    # http://influxdb:8086, and the database the MQTT bridge writes to.
+    influx_url: str
+    influx_db: str
 
     # --- Optional broker credentials (the broker may allow anonymous access). ---
     mqtt_username: str | None = None

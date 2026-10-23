@@ -3,6 +3,8 @@ import os
 # Required env must exist before importing src.* (Settings() runs at import time).
 os.environ.setdefault("AUTH_PASSWORD", "test-password")
 os.environ.setdefault("MQTT_HOST", "localhost")
+os.environ.setdefault("INFLUX_URL", "http://localhost:8086")
+os.environ.setdefault("INFLUX_DB", "test")
 # Plain-HTTP TestClient must keep the session cookie -> disable the Secure flag.
 os.environ.setdefault("COOKIE_SECURE", "false")
 

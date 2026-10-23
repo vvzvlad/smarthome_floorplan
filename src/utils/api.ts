@@ -166,6 +166,16 @@ export async function setCameraPower(widgetId: string, on: boolean): Promise<num
     return (await res.json()).until;
 }
 
+/** Last 24 hours of a chart widget's value as [epoch seconds, value] pairs (5-minute
+ *  averages). `params` is `device` + `path` or `topic`, see chartRequestParams. Plain fetch
+ *  (not apiFetch): the floorplan paints from the cached config before the session is
+ *  confirmed, and a 401 there must not trigger the reload path. */
+export async function fetchChart(params: Record<string, string>): Promise<[number, number][]> {
+    const res = await fetchWithTimeout(`/api/chart?${new URLSearchParams(params)}`, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Failed to fetch chart');
+    return (await res.json()).points;
+}
+
 export async function fetchDevices(): Promise<string[]> {
     const res = await apiFetch('/api/devices');
     if (!res.ok) throw new Error('Failed to fetch devices');

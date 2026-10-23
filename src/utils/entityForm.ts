@@ -2,7 +2,7 @@
 // filtering, numeric-field parsing and default-config seeds can be unit-tested
 // without mounting the component.
 
-import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig, CameraConfig, SensorConfig } from '../types/floorplan';
+import type { TextConfig, NumberConfig, ButtonConfig, ToggleConfig, SelectConfig, CameraConfig, SensorConfig, ChartConfig } from '../types/floorplan';
 
 /**
  * Filter a device list by a case-insensitive substring query. An empty query
@@ -90,4 +90,12 @@ export function defaultCameraConfig(): CameraConfig {
  */
 export function defaultSensorConfig(): SensorConfig {
   return { jsonPath: 'contact', onValue: 'false', size: 2.1, icon: '' };
+}
+
+/**
+ * Default seed for a chart-entity config, set by PropertiesPanel.vue's
+ * onTypeChange: the temperature field of a z2m device.
+ */
+export function defaultChartConfig(): ChartConfig {
+  return { source: 'state', jsonPath: 'temperature', readTopic: '', format: '{}', width: 15 };
 }

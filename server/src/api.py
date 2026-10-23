@@ -356,6 +356,67 @@ async def post_camera_power(widget_id: str, body: CameraPowerBody):
     return JSONResponse(content={"until": until})
 
 
+# --- Chart history (InfluxDB) ---
+# The MQTT bridge (mqtt2influx) writes every MQTT value into InfluxDB 1.x: the measurement is
+# the topic plus the JSON keys joined with "/", spaces replaced by "_", lowercased; the value
+# is in the single field "value". The chart widget reads the last 24 hours of one measurement.
+INFLUX_TIMEOUT = 10  # seconds to wait for InfluxDB before giving up
+
+
+def chart_measurement(device: str | None, path: str | None, topic: str | None) -> str | None:
+    """Measurement of a chart widget's value, named the way the bridge names it.
+
+    Either `device` + `path` (a field of a z2m device state, "sensors.co2" being a nested
+    key) or `topic` (a raw MQTT topic). Any other combination -> None.
+    """
+    if device and path and not topic:
+        name = f"{settings.z2m_base}/{device}/{path.replace('.', '/')}"
+    elif topic and not device and not path:
+        name = topic
+    else:
+        return None
+    return name.replace(" ", "_").lower()
+
+
+def _influx_identifier(name: str) -> str:
+    """Quote a name as an InfluxQL identifier: "/" and "-" in topics need the quotes."""
+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _chart_points(measurement: str) -> list:
+    """Blocking InfluxDB query: 5-minute means of the last 24 h as [[epoch seconds, value], ...].
+
+    Aggregated by InfluxDB because a busy topic carries tens of thousands of points a day.
+    Raises on a network failure and on an error InfluxDB reports in its answer.
+    """
+    q = (f'SELECT mean("value") FROM {_influx_identifier(measurement)} '
+         "WHERE time > now() - 24h GROUP BY time(5m) fill(none)")
+    params = urllib.parse.urlencode({"db": settings.influx_db, "q": q, "epoch": "s"})
+    with urllib.request.urlopen(f"{settings.influx_url}/query?{params}", timeout=INFLUX_TIMEOUT) as resp:
+        data = json.loads(resp.read())
+    if "error" in data:
+        raise RuntimeError(data["error"])
+    result = data["results"][0]
+    if "error" in result:
+        raise RuntimeError(result["error"])
+    # A measurement with no points in the window comes back without "series"
+    series = result.get("series")
+    return series[0]["values"] if series else []
+
+
+@app.get("/api/chart", dependencies=[Depends(verify_auth)])
+async def get_chart(device: str | None = None, path: str | None = None, topic: str | None = None):
+    """History of a chart widget's value: {"points": [[epoch seconds, value], ...]}."""
+    measurement = chart_measurement(device, path, topic)
+    if measurement is None:
+        raise HTTPException(status_code=400, detail="Pass either device and path, or topic")
+    try:
+        points = await asyncio.to_thread(_chart_points, measurement)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="InfluxDB query failed")
+    return JSONResponse(content={"points": points})
+
+
 _static_path = os.path.join(os.path.dirname(__file__), "..", "static")
 
 # --- App icon (home-screen / PWA) ---

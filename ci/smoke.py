@@ -74,8 +74,9 @@ EXPECTED_CMD = ["python", "main.py"]
 STATIC_DIR = "/app/static"
 INDEX_PATH = "/app/static/index.html"
 
-# The two variables `Settings` declares without a default, spelled exactly as pydantic reports
-# them: it prints FIELD names, which are lowercase, not the SCREAMING_CASE of the environment.
+# Two of the four variables `Settings` declares without a default (INFLUX_URL and INFLUX_DB
+# are required too, not checked here), spelled exactly as pydantic reports them: it prints
+# FIELD names, which are lowercase, not the SCREAMING_CASE of the environment.
 # Check (a) requires both to be named, one row each, so a guard that lost one of them cannot
 # hide behind the other still firing.
 REQUIRED_FIELDS = ["auth_password", "mqtt_host"]
@@ -85,12 +86,16 @@ REQUIRED_FIELDS = ["auth_password", "mqtt_host"]
 #     real credential is needed and the gate can run on a pull request;
 #   * MQTT_HOST is a `.invalid` name (RFC 2606), so no real broker is reachable and check (f)
 #     is decidable;
+#   * INFLUX_URL is a `.invalid` name too and INFLUX_DB is invented: both are required by
+#     `Settings`, and no check here queries chart history;
 #   * COOKIE_SECURE=false because `cookie_secure` defaults to True and `http.cookiejar`, like a
 #     browser, will not send a Secure cookie over http;
 #   * APP_TITLE differs from the default "Z2M Floorplan" so the /api/info check proves the
 #     variable arrived; the probe refuses to run that check against the default.
 SMOKE_PASSWORD = "smoke-not-a-real-password"
 UNREACHABLE_MQTT_HOST = "mqtt.smoke.invalid"
+UNREACHABLE_INFLUX_URL = "http://influx.smoke.invalid:8086"
+SMOKE_INFLUX_DB = "smoke"
 SMOKE_TITLE = "smoke-app-title-4f2a"
 
 # The stable half of the line `mqtt_listener_loop()` logs when a connection attempt fails:
@@ -909,6 +914,8 @@ def start_container(image, name):
             "run", "-d", "--name", name,
             "-e", "AUTH_PASSWORD=" + SMOKE_PASSWORD,
             "-e", "MQTT_HOST=" + UNREACHABLE_MQTT_HOST,
+            "-e", "INFLUX_URL=" + UNREACHABLE_INFLUX_URL,
+            "-e", "INFLUX_DB=" + SMOKE_INFLUX_DB,
             "-e", "COOKIE_SECURE=false",
             "-e", "APP_TITLE=" + SMOKE_TITLE,
             image,

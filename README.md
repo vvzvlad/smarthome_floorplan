@@ -30,6 +30,8 @@ image and home-screen icon, and import/export the whole config.
   - **Select** — multi-state switch (e.g. AC heat / cool / off) over preset options.
   - **Sensor** — read-only uploadable icon (monochrome SVG or PNG with transparency), tinted with
     the on/off colour by a JSON field of the device state (e.g. a window contact).
+  - **Chart** — line of one value (a JSON field of the device state or a raw topic) over the last
+    24 hours with its min/max, read from InfluxDB as 5-minute averages and refreshed every 5 minutes.
 - Import/export: download or upload the whole floorplan config as JSON, and download
   the current background image.
 - Custom home-screen icon (uploadable PNG, with a bundled default).
@@ -53,6 +55,8 @@ cp .env.example .env
 | ---------------- | -------- | ---------------- | ---------------------------------------------- |
 | `AUTH_PASSWORD`  | yes      | —                | Login password (also default session secret).  |
 | `MQTT_HOST`      | yes      | —                | MQTT broker host (your own service).           |
+| `INFLUX_URL`     | yes      | —                | InfluxDB 1.x URL with the MQTT history, e.g. `http://influxdb:8086`. |
+| `INFLUX_DB`      | yes      | —                | InfluxDB database the MQTT bridge writes to.   |
 | `MQTT_PORT`      | no       | `1883`           | MQTT broker port.                              |
 | `MQTT_USERNAME`  | no       | —                | MQTT username (if the broker requires auth).   |
 | `MQTT_PASSWORD`  | no       | —                | MQTT password.                                 |
@@ -69,7 +73,7 @@ cp .env.example .env
 ## Local development
 ```bash
 make install            # create .venv, install backend dev/test deps
-cp .env.example .env    # set AUTH_PASSWORD, MQTT_HOST, COOKIE_SECURE=false
+cp .env.example .env    # set AUTH_PASSWORD, MQTT_HOST, INFLUX_URL, INFLUX_DB, COOKIE_SECURE=false
 make run                # backend API on :8000
 make dev                # Vite dev server (proxies /api to :8000)
 make test               # run backend tests (pytest)
