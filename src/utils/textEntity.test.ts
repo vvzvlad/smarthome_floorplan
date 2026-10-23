@@ -108,6 +108,26 @@ describe('formatRawTopicValue', () => {
     })
 })
 
+describe('value -> word mapping', () => {
+    const words = { onValue: 'false', onText: 'open', offText: 'closed' }
+
+    it('shows onText when the value equals onValue, offText otherwise', () => {
+        expect(formatTextValue('Window: {}', { contact: true }, 'contact', words)).toBe('Window: closed')
+        expect(formatTextValue('Window: {}', { contact: false }, 'contact', words)).toBe('Window: open')
+        expect(formatRawTopicValue('Door: {}', 'false', words)).toBe('Door: open')
+    })
+
+    it('a value not reported yet stays a dash', () => {
+        expect(formatTextValue('Window: {}', { battery: 100 }, 'contact', words)).toBe('Window: —')
+        expect(formatTextValue('Window: {}', undefined, 'contact', words)).toBe('Window: —')
+    })
+
+    it('without words the value is shown as is', () => {
+        expect(formatTextValue('Window: {}', { contact: true }, 'contact', { onValue: 'false', onText: '', offText: '' })).toBe('Window: true')
+        expect(formatTextValue('Window: {}', { contact: true }, 'contact', {})).toBe('Window: true')
+    })
+})
+
 describe('property-based: extractJsonPath', () => {
     it('never throws on arbitrary objects and arbitrary dotted paths', () => {
         fc.assert(

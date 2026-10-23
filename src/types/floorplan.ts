@@ -31,6 +31,12 @@ export interface TextConfig {
   readTopic: string;   // used when source === 'topic'; raw (non-JSON) MQTT topic, e.g. "home/kiln/temp"
   format: string;      // e.g. "Temp: {} °C"
   size: number;        // base font size in cqw; scales the text pill
+  // Value -> word mapping: with onText or offText set, "{}" shows onText when the value
+  // equals onValue and offText otherwise, e.g. a window contact: onValue "false",
+  // onText "open", offText "closed". Absent or '' on both = the value is shown as is.
+  onValue?: string;
+  onText?: string;
+  offText?: string;
 }
 
 export interface NumberConfig {

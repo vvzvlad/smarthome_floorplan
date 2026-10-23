@@ -221,9 +221,9 @@ const textValue = computed(() => {
   if (props.entity.type !== 'text' || !props.entity.textConfig) return '';
   const cfg = props.entity.textConfig;
   if ((cfg.source ?? 'state') === 'topic') {
-    return formatRawTopicValue(cfg.format, store.topicValues[cfg.readTopic ?? '']);
+    return formatRawTopicValue(cfg.format, store.topicValues[cfg.readTopic ?? ''], cfg);
   }
-  return formatTextValue(cfg.format, store.entityStates[props.entity.entityId]?.rawPayload, cfg.jsonPath);
+  return formatTextValue(cfg.format, store.entityStates[props.entity.entityId]?.rawPayload, cfg.jsonPath, cfg);
 });
 const textSize = computed(() => `${props.entity.textConfig?.size ?? 1.8}cqw`);
 

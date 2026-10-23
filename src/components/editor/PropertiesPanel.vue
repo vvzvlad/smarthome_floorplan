@@ -251,6 +251,12 @@ function setTextReadTopic(e: Event) {
     }
 }
 
+function setTextWord(key: 'onValue' | 'onText' | 'offText', e: Event) {
+    if (selectedEntity.value?.textConfig) {
+        selectedEntity.value.textConfig[key] = (e.target as HTMLInputElement).value;
+    }
+}
+
 function setTextNum(key: 'size', e: Event) {
     if (selectedEntity.value?.textConfig) {
         const n = parseNumberField((e.target as HTMLInputElement).value);
@@ -511,10 +517,28 @@ function removeSensorIcon() {
                                 placeholder="e.g. Temp: {} °C">
                         </div>
                         <div class="input-group">
+                            <label>On Value</label>
+                            <input type="text" :value="selectedEntity.textConfig?.onValue ?? ''"
+                                @input="setTextWord('onValue', $event)" placeholder="e.g. false">
+                        </div>
+                        <div class="row">
+                            <div class="input-group">
+                                <label>On Text</label>
+                                <input type="text" :value="selectedEntity.textConfig?.onText ?? ''"
+                                    @input="setTextWord('onText', $event)" placeholder="e.g. open">
+                            </div>
+                            <div class="input-group">
+                                <label>Off Text</label>
+                                <input type="text" :value="selectedEntity.textConfig?.offText ?? ''"
+                                    @input="setTextWord('offText', $event)" placeholder="e.g. closed">
+                            </div>
+                        </div>
+                        <div class="input-group">
                             <label>Size</label>
                             <input type="number" :value="selectedEntity.textConfig?.size ?? 1.8" step="0.1" min="0.5" @input="setTextNum('size', $event)">
                         </div>
                         <p class="hint small">Use <code>{}</code> as placeholder for the value. Raw topic mode shows the MQTT payload as-is (no JSON parsing).</p>
+                        <p class="hint small">With On Text or Off Text set, <code>{}</code> shows On Text when the value equals On Value and Off Text otherwise: a window contact with On Value <code>false</code>, On Text <code>open</code>, Off Text <code>closed</code> and format <code>Window: {}</code> reads <code>Window: closed</code> / <code>Window: open</code>.</p>
                     </template>
 
                     <!-- Number entity config -->

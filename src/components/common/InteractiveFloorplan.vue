@@ -155,9 +155,9 @@ function getTextValue(entity: EntityConfig): string {
     const cfg = entity.textConfig;
     if (!cfg) return '';
     if ((cfg.source ?? 'state') === 'topic') {
-        return formatRawTopicValue(cfg.format, props.topicValues[cfg.readTopic ?? '']);
+        return formatRawTopicValue(cfg.format, props.topicValues[cfg.readTopic ?? ''], cfg);
     }
-    return formatTextValue(cfg.format, props.entityStates[entity.entityId]?.rawPayload, cfg.jsonPath);
+    return formatTextValue(cfg.format, props.entityStates[entity.entityId]?.rawPayload, cfg.jsonPath, cfg);
 }
 
 function getTextPositionStyle(entity: EntityConfig) {
