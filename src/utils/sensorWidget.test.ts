@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isSensorActive, isSensorKnown, sensorIconStyle, sensorCaption, SENSOR_UNKNOWN_COLOR } from './sensorWidget'
+import { isSensorActive, isSensorKnown, sensorIconStyle, SENSOR_UNKNOWN_COLOR } from './sensorWidget'
 
 describe('isSensorActive', () => {
   it('boolean field equal to onValue -> true', () => {
@@ -38,24 +38,5 @@ describe('isSensorKnown', () => {
     expect(isSensorKnown(undefined, 'contact')).toBe(false)
     expect(isSensorKnown({ battery: 100 }, 'contact')).toBe(false)
     expect(isSensorKnown({ contact: false }, 'contact')).toBe(true)
-  })
-})
-
-describe('sensorCaption', () => {
-  const cfg = { jsonPath: 'contact', onValue: 'false', size: 2.1, icon: '', onText: 'open', offText: 'closed' }
-
-  it('label and the word of the current state', () => {
-    expect(sensorCaption('Window', { contact: true }, cfg)).toBe('Window: closed')
-    expect(sensorCaption('Window', { contact: false }, cfg)).toBe('Window: open')
-  })
-
-  it('em dash until the field is reported; the word alone without a label', () => {
-    expect(sensorCaption('Window', { battery: 100 }, cfg)).toBe('Window: —')
-    expect(sensorCaption('', { contact: true }, cfg)).toBe('closed')
-  })
-
-  it('no caption when both words are empty or absent (config saved before captions)', () => {
-    expect(sensorCaption('Window', { contact: true }, { ...cfg, onText: '', offText: '' })).toBe('')
-    expect(sensorCaption('Window', { contact: true }, { jsonPath: 'contact', onValue: 'false', size: 2.1, icon: '' } as never)).toBe('')
   })
 })

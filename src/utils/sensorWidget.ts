@@ -2,7 +2,7 @@
 // the device's z2m state), used by SensorIcon.vue.
 
 import { extractJsonPath } from './textEntity';
-import type { BinaryColors, SensorConfig } from '../types/floorplan';
+import type { BinaryColors } from '../types/floorplan';
 
 // Look of a sensor whose field has not been reported yet. zigbee2mqtt does not
 // retain device states and a contact sensor reports only on change, so after a
@@ -46,23 +46,4 @@ export function sensorIconStyle(
     return { color: SENSOR_UNKNOWN_COLOR, opacity: SENSOR_UNKNOWN_OPACITY };
   }
   return { color: isSensorActive(rawPayload, jsonPath, onValue) ? colors.onColor : colors.offColor, opacity: 1 };
-}
-
-/**
- * Caption shown next to the icon: "<label>: <word>", e.g. "Window: closed", where
- * the word is onText/offText by the state and an em dash while the field has not
- * been reported (like an unreported text widget). An empty label leaves the word
- * alone; both words empty (or absent in an older config) -> '' and no caption.
- */
-export function sensorCaption(
-  label: string,
-  rawPayload: Record<string, unknown> | undefined,
-  config: SensorConfig | undefined,
-): string {
-  if (!config?.onText && !config?.offText) return '';
-  let word = '—';
-  if (isSensorKnown(rawPayload, config.jsonPath)) {
-    word = (isSensorActive(rawPayload, config.jsonPath, config.onValue) ? config.onText : config.offText) ?? '';
-  }
-  return label ? `${label}: ${word}` : word;
 }

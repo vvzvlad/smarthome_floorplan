@@ -9,7 +9,6 @@ import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
 import SensorIcon from '../common/SensorIcon.vue';
-import { sensorCaption } from '../../utils/sensorWidget';
 import { entityStyle, labelTransform } from '../../utils/entityVisual';
 import { cameraImageUrl } from '../../utils/api';
 
@@ -294,8 +293,7 @@ const selectSize = computed(() => `${props.entity.selectConfig?.size ?? 2.5}cqw`
     </div>
     <!-- Sensor entity: the same glyph as the viewer, coloured by the live state -->
     <SensorIcon v-else-if="entity.type === 'sensor'" :config="entity.sensorConfig" :colors="entity.style.colors"
-      :raw-payload="store.entityStates[entity.entityId]?.rawPayload"
-      :caption="sensorCaption(entity.label, store.entityStates[entity.entityId]?.rawPayload, entity.sensorConfig)" />
+      :raw-payload="store.entityStates[entity.entityId]?.rawPayload" />
     <!-- Camera entity: non-interactive snapshot preview for placement -->
     <div v-else-if="entity.type === 'camera'" class="camera-preview" style="pointer-events: none">
       <img v-if="entity.cameraConfig?.url" :src="cameraImageUrl(entity.cameraConfig.url)" alt="" draggable="false">
