@@ -85,6 +85,10 @@ export interface SensorConfig {
   onValue: string;   // the icon shows style.colors.onColor when String(field) equals this, e.g. "false"
   size: number;      // icon size in cqw
   icon: string;      // uploaded icon (SVG or PNG) as a data URI, used as a mask tinted by the state colour; '' = none (a circle is shown)
+  // Caption next to the icon reads "<label>: <word>", e.g. "Window: closed"; both '' = no caption.
+  // Sensors saved before these fields existed lack them, which reads the same.
+  onText: string;    // word for the on state, e.g. "open"
+  offText: string;   // word for the off state, e.g. "closed"
 }
 
 export interface EntityConfig {

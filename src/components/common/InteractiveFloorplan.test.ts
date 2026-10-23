@@ -244,6 +244,13 @@ describe('InteractiveFloorplan — sensor icon', () => {
         expect(glyph.attributes('style')).not.toContain('mask-image')
         expect(glyph.classes()).toContain('circle')
     })
+
+    it('captions the icon with the label and the state word', () => {
+        const entity = lightEntity({ id: 's1', entityId: 'window_sensor', type: 'sensor', label: 'Window',
+            sensorConfig: { jsonPath: 'contact', onValue: 'false', size: 2.1, icon: '', onText: 'open', offText: 'closed' } })
+        const w = mountWith([entity], { window_sensor: { state: 'off', rawPayload: { contact: true } } })
+        expect(w.find('.sensor-icon .sensor-caption').text()).toBe('Window: closed')
+    })
 })
 
 describe('InteractiveFloorplan — camera power', () => {

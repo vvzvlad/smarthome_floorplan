@@ -333,7 +333,7 @@ function setCameraNum(key: 'width', e: Event) {
     }
 }
 
-function setSensorField(key: 'jsonPath' | 'onValue', e: Event) {
+function setSensorField(key: 'jsonPath' | 'onValue' | 'onText' | 'offText', e: Event) {
     if (selectedEntity.value?.sensorConfig) {
         selectedEntity.value.sensorConfig[key] = (e.target as HTMLInputElement).value;
     }
@@ -691,6 +691,18 @@ function removeSensorIcon() {
                             <input type="text" :value="selectedEntity.sensorConfig?.onValue ?? ''"
                                 @input="setSensorField('onValue', $event)" placeholder="e.g. false">
                         </div>
+                        <div class="row">
+                            <div class="input-group">
+                                <label>On Text</label>
+                                <input type="text" :value="selectedEntity.sensorConfig?.onText ?? ''"
+                                    @input="setSensorField('onText', $event)" placeholder="e.g. open">
+                            </div>
+                            <div class="input-group">
+                                <label>Off Text</label>
+                                <input type="text" :value="selectedEntity.sensorConfig?.offText ?? ''"
+                                    @input="setSensorField('offText', $event)" placeholder="e.g. closed">
+                            </div>
+                        </div>
                         <div class="input-group">
                             <label>Icon</label>
                             <div class="app-icon-row">
@@ -724,6 +736,7 @@ function removeSensorIcon() {
                             </div>
                         </div>
                         <p class="hint small">Upload a monochrome SVG or PNG icon with a transparent background: its shape is tinted with the On/Off colors (without an icon a circle is shown). The icon takes the On color when the JSON field of the device state equals the On value (a door/window contact reports <code>contact: false</code> when open), the Off color otherwise.</p>
+                        <p class="hint small">The caption next to the icon reads <code>Label: On text</code> or <code>Label: Off text</code> by the same rule, <code>Label: —</code> until the device reports the field. Leave both texts empty to hide it.</p>
                     </template>
 
                     <!-- Light entity config -->

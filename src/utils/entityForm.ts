@@ -89,5 +89,5 @@ export function defaultCameraConfig(): CameraConfig {
  * `contact: false` when it is open, so the icon lights up while open.
  */
 export function defaultSensorConfig(): SensorConfig {
-  return { jsonPath: 'contact', onValue: 'false', size: 2.1, icon: '' };
+  return { jsonPath: 'contact', onValue: 'false', size: 2.1, icon: '', onText: 'open', offText: 'closed' };
 }

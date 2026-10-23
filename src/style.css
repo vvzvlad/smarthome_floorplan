@@ -338,9 +338,27 @@ input:focus {
 .multi-switch .multi-switch-btn.active { background: #22c55e; color: #ffffff; }
 
 .sensor-icon {
+  position: relative; /* anchors .sensor-caption; the viewer sets position: absolute inline */
   pointer-events: none;
   user-select: none;
   /* font-size (in cqw), opacity and outline colour are set inline by SensorIcon.vue */
+}
+/* "Window: closed": the text-widget pill, to the right of the glyph and outside its box,
+   so the glyph keeps its place and the unknown outline stays around the glyph only */
+.sensor-caption {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0.25em;
+  font-size: 0.6em;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-family: monospace;
+  line-height: 1.4;
 }
 .sensor-glyph {
   width: 1em;

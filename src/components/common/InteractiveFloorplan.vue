@@ -13,6 +13,7 @@ import { formatButtonLabel } from '../../utils/buttonWidget';
 import { resolveToggleState } from '../../utils/toggleWidget';
 import { resolveSelectValue } from '../../utils/selectWidget';
 import SensorIcon from './SensorIcon.vue';
+import { sensorCaption } from '../../utils/sensorWidget';
 import { brightnessToGradientOpacity, brightnessToShapeOpacity } from '../../utils/entityVisual';
 import { useSvgAspectRatio } from '../../utils/useSvgAspectRatio';
 import { cameraImageUrl } from '../../utils/api';
@@ -452,6 +453,7 @@ function atMax(entity: EntityConfig): boolean {
                 <SensorIcon v-for="entity in props.config.entities.filter(e => e.type === 'sensor')" :key="entity.id"
                     :config="entity.sensorConfig" :colors="entity.style.colors"
                     :raw-payload="props.entityStates[entity.entityId]?.rawPayload"
+                    :caption="sensorCaption(entity.label, props.entityStates[entity.entityId]?.rawPayload, entity.sensorConfig)"
                     :style="getSensorPositionStyle(entity)" />
 
                 <!-- Camera snapshot previews (loaded once per page load; click opens the live view).

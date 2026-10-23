@@ -5,7 +5,9 @@
 // monochrome icon with a transparent background (SVG or PNG) takes the on/off
 // colour. Without an icon the glyph is a filled circle in the same colour, so the
 // entity stays visible and draggable. Size comes from the config (cqw); a parent
-// can override it with an inline font-size.
+// can override it with an inline font-size. A non-empty `caption` (sensorCaption())
+// is drawn to the right of the glyph, outside the box, so the glyph stays centred
+// on the entity position; the properties preview passes none.
 import { computed } from 'vue';
 import type { BinaryColors, SensorConfig } from '../../types/floorplan';
 import { sensorIconStyle, isSensorKnown } from '../../utils/sensorWidget';
@@ -14,6 +16,7 @@ const props = defineProps<{
   config?: SensorConfig;
   colors: BinaryColors;
   rawPayload?: Record<string, unknown>;
+  caption?: string;
 }>();
 
 const look = computed(() =>
@@ -33,5 +36,6 @@ const glyphStyle = computed(() => {
   <div class="sensor-icon" :class="{ unknown: !known }"
     :style="{ fontSize: `${config?.size ?? 2.1}cqw`, opacity: look.opacity, outlineColor: look.color }">
     <div class="sensor-glyph" :class="{ circle: !config?.icon }" :style="glyphStyle"></div>
+    <span v-if="caption" class="sensor-caption">{{ caption }}</span>
   </div>
 </template>
