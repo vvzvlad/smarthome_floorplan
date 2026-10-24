@@ -444,11 +444,25 @@ input:focus {
   pointer-events: none;
   user-select: none;
 }
+/* the plot leaves a strip at the bottom for the time labels (.chart-tick) */
 .chart-widget svg {
   position: absolute;
-  inset: 0;
+  inset: 0 0 1.2em 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 1.2em);
+}
+.chart-widget .chart-grid {
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.chart-widget .chart-tick {
+  position: absolute;
+  bottom: 0.15em;
+  transform: translateX(-50%);
+  font-size: 0.8em;
+  color: #94a3b8;
+  white-space: nowrap;
 }
 .chart-widget polyline {
   fill: none;
@@ -463,7 +477,7 @@ input:focus {
   white-space: nowrap;
 }
 .chart-widget .chart-max { top: 0.3cqw; }
-.chart-widget .chart-min { bottom: 0.3cqw; }
+.chart-widget .chart-min { bottom: calc(1.2em + 0.3cqw); }
 .chart-widget .chart-empty {
   position: absolute;
   inset: 0;

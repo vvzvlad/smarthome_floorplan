@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chartRequestParams, chartRange, chartPolylinePoints, formatChartValue, CHART_WINDOW_S } from './chartWidget'
+import { chartRequestParams, chartRange, chartPolylinePoints, chartTimeTicks, formatChartValue, CHART_WINDOW_S } from './chartWidget'
 import type { ChartConfig } from '../types/floorplan'
 
 function cfg(overrides: Partial<ChartConfig> = {}): ChartConfig {
@@ -55,5 +55,19 @@ describe('formatChartValue', () => {
   it('rounds to one decimal and fills the placeholder', () => {
     expect(formatChartValue('{}°C', 21.46)).toBe('21.5°C')
     expect(formatChartValue('{}', 20)).toBe('20')
+  })
+})
+
+describe('chartTimeTicks', () => {
+  it('every 6 local hours within the last 24 h, oldest first, placed on the time axis', () => {
+    // Built in local time, so the expectation holds in any time zone without DST on that day:
+    // the window starts at 14:30 the day before, the ticks are 3.5, 9.5, 15.5 and 21.5 h into it.
+    const now = new Date(2026, 9, 24, 14, 30).getTime() / 1000
+    expect(chartTimeTicks(now)).toEqual([
+      { x: 14.58, label: '18:00' },
+      { x: 39.58, label: '00:00' },
+      { x: 64.58, label: '06:00' },
+      { x: 89.58, label: '12:00' },
+    ])
   })
 })

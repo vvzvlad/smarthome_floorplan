@@ -8,7 +8,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ChartConfig } from '../../types/floorplan';
 import { fetchChart } from '../../utils/api';
 import {
-  chartRequestParams, chartRange, chartPolylinePoints, formatChartValue,
+  chartRequestParams, chartRange, chartPolylinePoints, chartTimeTicks, formatChartValue,
   CHART_VIEW_W, CHART_VIEW_H, type ChartPoint,
 } from '../../utils/chartWidget';
 
@@ -60,6 +60,11 @@ onUnmounted(() => {
 
 const range = computed(() => chartRange(points.value));
 const line = computed(() => chartPolylinePoints(points.value, nowS.value));
+const ticks = computed(() => chartTimeTicks(nowS.value));
+// Half a tick label in % of the widget width: "HH:00" at 0.8cqw monospace is about 2.4cqw
+// wide and the widget is config.width cqw. A tick closer to an edge would have its label cut
+// by the box, so only its grid line is drawn.
+const tickLabelMargin = computed(() => (1.2 / (props.config?.width || 15)) * 100);
 const format = computed(() => props.config?.format ?? '{}');
 </script>
 
@@ -67,8 +72,13 @@ const format = computed(() => props.config?.format ?? '{}');
   <div class="chart-widget">
     <template v-if="range">
       <svg :viewBox="`0 0 ${CHART_VIEW_W} ${CHART_VIEW_H}`" preserveAspectRatio="none" aria-hidden="true">
+        <line v-for="t in ticks" :key="t.label" class="chart-grid" :x1="t.x" :x2="t.x" y1="0" :y2="CHART_VIEW_H" />
         <polyline :points="line" />
       </svg>
+      <template v-for="t in ticks" :key="t.label">
+        <span v-if="t.x > tickLabelMargin && t.x < CHART_VIEW_W - tickLabelMargin"
+          class="chart-tick" :style="{ left: `${t.x}%` }">{{ t.label }}</span>
+      </template>
       <span class="chart-label chart-max">{{ formatChartValue(format, range.max) }}</span>
       <span class="chart-label chart-min">{{ formatChartValue(format, range.min) }}</span>
     </template>

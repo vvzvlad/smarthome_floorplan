@@ -9,7 +9,7 @@ export type ChartPoint = [number, number];
 /** Time span the chart covers, in seconds. */
 export const CHART_WINDOW_S = 24 * 60 * 60;
 
-/** SVG viewBox of the line: x 0..100 (time), y 0..CHART_VIEW_H (value), the widget's 5:2 shape. */
+/** SVG viewBox of the line: x 0..100 (time), y 0..CHART_VIEW_H (value), stretched onto the plot box above the time labels. */
 export const CHART_VIEW_W = 100;
 export const CHART_VIEW_H = 40;
 /** Empty band above the highest and below the lowest value, so the stroke is not clipped by the box edge. */
@@ -59,6 +59,24 @@ export function chartPolylinePoints(points: ChartPoint[], nowS: number): string 
       return `${round2(x)},${round2(y)}`;
     })
     .join(' ');
+}
+
+/**
+ * Ticks of the time axis: every whole local hour divisible by `stepH` within
+ * the last 24 hours before nowS, oldest first, with x on 0..CHART_VIEW_W and
+ * the "HH:00" label in the viewer's local time.
+ */
+export function chartTimeTicks(nowS: number, stepH = 6): { x: number; label: string }[] {
+  const start = nowS - CHART_WINDOW_S;
+  const d = new Date(nowS * 1000);
+  d.setHours(d.getHours() - (d.getHours() % stepH), 0, 0, 0);
+  const ticks: { x: number; label: string }[] = [];
+  while (d.getTime() / 1000 > start) {
+    const x = ((d.getTime() / 1000 - start) / CHART_WINDOW_S) * CHART_VIEW_W;
+    ticks.unshift({ x: round2(x), label: `${String(d.getHours()).padStart(2, '0')}:00` });
+    d.setHours(d.getHours() - stepH);
+  }
+  return ticks;
 }
 
 /** A min/max label: the value rounded to one decimal put into the format's "{}". */
