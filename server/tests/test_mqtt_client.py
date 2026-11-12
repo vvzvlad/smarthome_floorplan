@@ -511,6 +511,24 @@ def test_apply_device_message_non_dict_ignored(payload):
     assert states == {"Lamp": {"state": "ON"}}
 
 
+def test_apply_device_message_splits_endpoints():
+    # Payloads as zigbee2mqtt publishes a three-key wall switch and a two-channel dimmer.
+    states = {}
+    apply_device_message(states, "hallway_3switch", json.dumps({
+        "backlight_mode": "normal", "power_on_behavior_left": "previous",
+        "state_left": "ON", "state_center": "OFF", "state_right": "OFF",
+    }).encode())
+    apply_device_message(states, "main_led_l3", json.dumps({
+        "brightness": 1, "state": "ON", "state_l1": "ON", "brightness_l1": 100,
+        "min_brightness_l1": 63, "state_l2": "OFF", "brightness_l2": 254,
+    }).encode())
+    assert states["hallway_3switch/left"] == {"state": "ON", "power_on_behavior": "previous"}
+    assert states["hallway_3switch/center"] == {"state": "OFF"}
+    assert states["main_led_l3/l1"] == {"state": "ON", "brightness": 100, "min_brightness": 63}
+    assert states["main_led_l3/l2"] == {"state": "OFF", "brightness": 254}
+    assert states["main_led_l3"]["brightness"] == 1  # the device's own state is kept as is
+
+
 def test_apply_device_message_full_replace_not_merge():
     # Documents replace-not-merge semantics of the broker listener.
     states = {"Lamp": {"state": "ON", "brightness": 128}}

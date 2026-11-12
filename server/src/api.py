@@ -181,7 +181,8 @@ def get_devices():
 async def post_command(entity_id: str, request: Request):
     """
     Accept a command for a device and forward it to MQTT.
-    entity_id is the z2m friendly_name (may contain spaces, URL-encoded as %20).
+    entity_id is the z2m friendly_name (may contain spaces, URL-encoded as %20), or
+    "<friendly_name>/<endpoint>" for one channel of a multi-endpoint device (slash as %2F).
     Body: {"state": "ON"} | {"state": "OFF"} or {"field": "brightness", "value": 128}
     """
     body = await request.json()

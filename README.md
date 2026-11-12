@@ -21,7 +21,9 @@ image and home-screen icon, and import/export the whole config.
 - Visual editor: place entities on an uploaded floorplan image; set their position,
   size, rotation, and shape (circle / square / rect / custom polygon for light spread).
 - Widget types, each bound to MQTT:
-  - **Light** — live zigbee2mqtt state; click to toggle or set brightness.
+  - **Light** — live zigbee2mqtt state; click to toggle or set brightness. One channel of a
+    multi-endpoint device (a key of a wall switch, a dimmer channel) is bound as `<device>/<endpoint>`,
+    e.g. `hallway_3switch/left`.
   - **Text** — show a value pulled from a JSON payload via a path + format string, optionally
     as a word per state (e.g. a window contact as "Window: closed" / "Window: open").
   - **Number** — stepper that reads/writes a raw value over two topics (min/max/step/unit).

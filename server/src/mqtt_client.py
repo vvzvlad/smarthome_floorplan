@@ -8,7 +8,8 @@ from .config_store import read_config
 
 logger = logging.getLogger(__name__)
 
-# Global state dict: { friendly_name: { "state": "ON" | "OFF" } }
+# Global state dict: { friendly_name: { "state": "ON" | "OFF" } }; a channel of a
+# multi-endpoint device is keyed "<friendly_name>/<endpoint>" (see endpoint_states)
 device_states: Dict[str, Dict[str, Any]] = {}
 
 # Raw last-known values of configured MQTT read topics: { topic: raw_string }
@@ -54,6 +55,31 @@ def apply_topic_value(values: dict, topic: str, payload_bytes) -> None:
         pass
 
 
+def endpoint_states(payload: dict) -> Dict[str, Dict[str, Any]]:
+    """Split the payload of a multi-endpoint z2m device into per-endpoint states.
+
+    zigbee2mqtt reports every channel of such a device (a three-key wall switch,
+    a two-channel dimmer) inside the device's own message, with the endpoint name
+    as a key suffix: {"state_left": "ON", "brightness_l1": 100}. Each endpoint that
+    has an ON/OFF ``state_<endpoint>`` becomes a state of its own with the suffix
+    stripped, e.g. {"left": {"state": "ON"}}. Commands for one channel go to
+    zigbee2mqtt/<device>/<endpoint>/set, so "<device>/<endpoint>" works as a
+    friendly_name for both reading and writing.
+    """
+    result: Dict[str, Dict[str, Any]] = {}
+    for key, value in payload.items():
+        if not key.startswith("state_") or not isinstance(value, str):
+            continue
+        if value.upper() not in ("ON", "OFF"):
+            continue
+        endpoint = key[len("state_"):]
+        suffix = f"_{endpoint}"
+        result[endpoint] = {
+            k[: -len(suffix)]: v for k, v in payload.items() if k.endswith(suffix)
+        }
+    return result
+
+
 def apply_device_message(
     states: dict, friendly_name: str, payload_bytes, topic: Optional[str] = None
 ) -> Optional[str]:
@@ -63,6 +89,8 @@ def apply_device_message(
     ``states[friendly_name]`` with it (replace, not merge) and return the new
     ``state`` value when it changed (else None). On invalid JSON or a non-dict
     payload, leave ``states`` unchanged and return None. Never raises.
+    Channels of a multi-endpoint device are also stored, each under
+    "<friendly_name>/<endpoint>" (see endpoint_states).
 
     ``topic`` is used only for the parse-failure debug log; when omitted it
     falls back to ``friendly_name``.
@@ -81,6 +109,8 @@ def apply_device_message(
         return None
     old_state = states.get(friendly_name, {}).get("state")
     states[friendly_name] = payload
+    for endpoint, endpoint_state in endpoint_states(payload).items():
+        states[f"{friendly_name}/{endpoint}"] = endpoint_state
     new_state = payload.get("state")
     if new_state is not None and old_state != new_state:
         logger.info(
